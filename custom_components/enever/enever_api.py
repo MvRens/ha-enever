@@ -76,6 +76,11 @@ class Providers:
 
         return provider not in ["", "TI"]
 
+    @staticmethod
+    def get_display_name(provider: str) -> str:
+        """Return the display name for the provider, or the input value if not valid."""
+        return PROVIDERS.get(provider, provider)
+
 
 @dataclass
 class EneverData:
@@ -125,8 +130,8 @@ class EneverAPI:
         Note: counts towards request limit!
         """
         try:
-            params = {"token", self.token}
-            response = self.client.get(
+            params = {"token": self.token}
+            response = await self.client.get(
                 BASE_URL + self.ENDPOINT_GASPRIJS_VANDAAG, params=params
             )
 
@@ -153,7 +158,7 @@ class EneverAPI:
         return await self.__fetch(self.ENDPOINT_GASPRIJS_VANDAAG)
 
     async def __fetch(self, endpoint: str):
-        params = {"token", self.token}
+        params = {"token": self.token}
 
         try:
             response = self.client.get(BASE_URL + endpoint, params=params)

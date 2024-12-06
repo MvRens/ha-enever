@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from coordinator import ElectricityPricesCoordinator, GasPricesCoordinator
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_TOKEN, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import DOMAIN
+from .coordinator import ElectricityPricesCoordinator, GasPricesCoordinator
 from .enever_api import EneverAPI
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]

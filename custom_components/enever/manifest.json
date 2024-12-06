@@ -1,15 +1,8 @@
 {
   "domain": "enever",
   "name": "Enever",
-  "codeowners": [
-    "@MvRens"
-  ],
+  "codeowners": ["@MvRens"],
   "config_flow": true,
-  "dependencies": [],
   "documentation": "https://github.com/MvRens/ha-enever",
-  "homekit": {},
-  "iot_class": "cloud_polling",
-  "requirements": [],
-  "ssdp": [],
-  "zeroconf": []
+  "iot_class": "cloud_polling"
 }

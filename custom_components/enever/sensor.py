@@ -1,19 +1,20 @@
 """Enever sensors."""
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfVolume
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
 from .const import DOMAIN
 from .coordinator import EneverUpdateCoordinator
+from .enever_api import Providers
 from .entity import EneverEntity
-
-SENSORS: dict[str, tuple[SensorEntityDescription, ...]] = {
-    "gas": (SensorEntityDescription()),
-    "electricity": (),
-}
 
 
 async def async_setup_entry(
@@ -24,43 +25,69 @@ async def async_setup_entry(
     """Set up Enever sensor based on a config entry."""
     coordinators: dict[str, EneverUpdateCoordinator] = hass.data[DOMAIN][entry.entry_id]
 
-    entities: list[EneverEntity] = []
+    gasCoordinator = coordinators["gas"]
+    electricityCoordinator = coordinators["electricity"]
 
-    for coordinator_type, sensors in SENSORS.items():
-        coordinator = coordinators[coordinator_type]
-        entities.extend(
-            EneverSensorEntity(coordinator, sensor_description)
-            for sensor_description in sensors
-        )
+    entities: list[EneverEntity] = [
+        EneverGasSensorEntity(gasCoordinator, provider)
+        for provider in Providers.gas_keys()
+    ] + [
+        EneverElectricitySensorEntity(electricityCoordinator, provider)
+        for provider in Providers.electricity_keys()
+    ]
 
     async_add_entities(entities)
 
 
-class EneverSensorEntity(EneverEntity, SensorEntity):
-    """Defines a Enever sensor."""
+class Unit:
+    """Convenience constants for used units."""
 
-    entity_description: SensorEntityDescription
+    EUR_KWH = f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
+    EUR_M3 = f"{CURRENCY_EURO}/{UnitOfVolume.CUBIC_METERS}"
 
-    def __init__(
-        self,
-        coordinator: EneverUpdateCoordinator,
-        description: SensorEntityDescription,
-    ) -> None:
+
+class EneverGasSensorEntity(EneverEntity, SensorEntity):
+    """Defines a Enever gas price sensor."""
+
+    def __init__(self, coordinator: EneverUpdateCoordinator, provider: str) -> None:
         """Initialize a Enever sensor entity."""
         super().__init__(coordinator=coordinator)
-        self.entity_description = description
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_gas_{provider}"
+        self._attr_name = f"gasprijs {Providers.get_display_name(provider)}"
+        self._attr_icon = "mdi:gas-burner"
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_native_unit_of_measurement = Unit.EUR_M3
+        # TODO config flow option to enable or disable all sensors by default
+        self._attr_entity_registry_enabled_default = False
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         # TODO return value
-        # return self.entity_description.value_fn(self.coordinator.data)
+        # self.coordinator.data
         return None
 
-    @property
-    def available(self) -> bool:
-        """Return if sensor is available."""
-        return super().available and self.entity_description.available_fn(
-            self.coordinator.data
+
+class EneverElectricitySensorEntity(EneverEntity, SensorEntity):
+    """Defines a Enever electricity price sensor."""
+
+    def __init__(self, coordinator: EneverUpdateCoordinator, provider: str) -> None:
+        """Initialize a Enever sensor entity."""
+        super().__init__(coordinator=coordinator)
+        self._attr_unique_id = (
+            f"{coordinator.config_entry.entry_id}_electricity_{provider}"
         )
+        self._attr_name = f"stroomprijs {Providers.get_display_name(provider)}"
+        self._attr_icon = "mdi:lightning-bolt"
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_device_class = SensorDeviceClass.MONETARY
+        self._attr_native_unit_of_measurement = Unit.EUR_KWH
+        self._attr_entity_registry_enabled_default = False
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        # TODO return value
+        # self.coordinator.data
+        return None
