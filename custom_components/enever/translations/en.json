@@ -11,7 +11,8 @@
         "step": {
             "user": {
                 "data": {
-                    "api_token": "API token"
+                    "api_token": "API token",
+                    "entities_default_enabled": "Enable all entities"
                 }
             }
         }

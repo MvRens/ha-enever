@@ -5,9 +5,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 import logging
-from time import monotonic
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -26,6 +25,28 @@ class EneverCoordinatorData:
     today_lastrequest: datetime | None
     tomorrow: EneverData | None
     tomorrow_lastrequest: datetime | None
+
+    @staticmethod
+    def from_dict(data: dict[str, any] | None) -> EneverCoordinatorData:
+        """Initialize from a dictionary for serialization."""
+        if data is None:
+            return EneverCoordinatorData()
+
+        return EneverCoordinatorData(
+            today=None,
+            today_lastrequest=data["today_lastrequest"],
+            tomorrow=None,
+            tomorrow_lastrequest=data["tomorrow_lastrequest"],
+        )
+
+    def to_dict() -> dict[str, any]:
+        """Return the data as a dictionary for serialization."""
+        return {
+            "today": None,
+            "today_lastrequest": None,
+            "tomorrow": None,
+            "tomorrow_lastrequest": None,
+        }
 
 
 class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC):
@@ -53,17 +74,16 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         """Update the data."""
 
         if self.cached_data is None:
-            self.cached_data = await self.store.async_load()
-
-            if self.cached_data is None:
-                self.cached_data = EneverCoordinatorData()
+            self.cached_data = EneverCoordinatorData.from_dict(
+                await self.store.async_load()
+            )
 
         # TODO check if required
         # TODO exception handling
         # self.cached_data.today = await self._fetch_today()
         # self.cached_data.tomorrow = await self._fetch_tomorrow()
 
-        self.store.async_save(self.cached_data)
+        await self.store.async_save(self.cached_data.to_dict())
 
     # try:
     #    async with asyncio.timeout(5):

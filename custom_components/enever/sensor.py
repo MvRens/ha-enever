@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
-from .const import DOMAIN
+from .const import CONF_ENTITIES_DEFAULT_ENABLED, DOMAIN
 from .coordinator import EneverUpdateCoordinator
 from .enever_api import Providers
 from .entity import EneverEntity
@@ -27,12 +27,13 @@ async def async_setup_entry(
 
     gasCoordinator = coordinators["gas"]
     electricityCoordinator = coordinators["electricity"]
+    entitiesEnabled = entry.data[CONF_ENTITIES_DEFAULT_ENABLED]
 
     entities: list[EneverEntity] = [
-        EneverGasSensorEntity(gasCoordinator, provider)
+        EneverGasSensorEntity(gasCoordinator, provider, entitiesEnabled)
         for provider in Providers.gas_keys()
     ] + [
-        EneverElectricitySensorEntity(electricityCoordinator, provider)
+        EneverElectricitySensorEntity(electricityCoordinator, provider, entitiesEnabled)
         for provider in Providers.electricity_keys()
     ]
 
@@ -49,7 +50,12 @@ class Unit:
 class EneverGasSensorEntity(EneverEntity, SensorEntity):
     """Defines a Enever gas price sensor."""
 
-    def __init__(self, coordinator: EneverUpdateCoordinator, provider: str) -> None:
+    def __init__(
+        self,
+        coordinator: EneverUpdateCoordinator,
+        provider: str,
+        entities_enabled: bool,
+    ) -> None:
         """Initialize a Enever sensor entity."""
         super().__init__(coordinator=coordinator)
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_gas_{provider}"
@@ -58,8 +64,7 @@ class EneverGasSensorEntity(EneverEntity, SensorEntity):
         self._attr_state_class = SensorStateClass.TOTAL
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_native_unit_of_measurement = Unit.EUR_M3
-        # TODO config flow option to enable or disable all sensors by default
-        self._attr_entity_registry_enabled_default = False
+        self._attr_entity_registry_enabled_default = entities_enabled
 
     @property
     def native_value(self) -> StateType:
@@ -72,7 +77,12 @@ class EneverGasSensorEntity(EneverEntity, SensorEntity):
 class EneverElectricitySensorEntity(EneverEntity, SensorEntity):
     """Defines a Enever electricity price sensor."""
 
-    def __init__(self, coordinator: EneverUpdateCoordinator, provider: str) -> None:
+    def __init__(
+        self,
+        coordinator: EneverUpdateCoordinator,
+        provider: str,
+        entities_enabled: bool,
+    ) -> None:
         """Initialize a Enever sensor entity."""
         super().__init__(coordinator=coordinator)
         self._attr_unique_id = (
@@ -83,7 +93,7 @@ class EneverElectricitySensorEntity(EneverEntity, SensorEntity):
         self._attr_state_class = SensorStateClass.TOTAL
         self._attr_device_class = SensorDeviceClass.MONETARY
         self._attr_native_unit_of_measurement = Unit.EUR_KWH
-        self._attr_entity_registry_enabled_default = False
+        self._attr_entity_registry_enabled_default = entities_enabled
 
     @property
     def native_value(self) -> StateType:

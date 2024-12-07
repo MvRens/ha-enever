@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_API_TOKEN, Platform
+from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.httpx_client import get_async_client
 
 from .const import DOMAIN
 from .coordinator import ElectricityPricesCoordinator, GasPricesCoordinator
-from .enever_api import EneverAPI
+from .enever_api_factory import get_enever_api
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -17,7 +16,7 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Enever from a config entry."""
 
-    api = EneverAPI(get_async_client(hass), entry.data[CONF_API_TOKEN])
+    api = get_enever_api(hass, entry.data)
 
     coordinators = {
         "gas": GasPricesCoordinator(hass, api),

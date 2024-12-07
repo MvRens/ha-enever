@@ -1,10 +1,12 @@
 """Wrapper for the Enever prijzenfeeds."""
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from httpx import AsyncClient, TimeoutException
+import anyio
+from httpx import AsyncClient, Response, TimeoutException
 
 
 class EneverError(Exception):
@@ -112,17 +114,12 @@ class EneverResponse:
         return EneverResponse(data=[EneverData.from_dict(item) for item in data])
 
 
-class EneverAPI:
+class EneverAPI(ABC):
     """Wrapper class for the Enever prijzenfeeds."""
 
     ENDPOINT_STROOMPRIJS_VANDAAG = "stroomprijs_vandaag.php"
     ENDPOINT_STROOMPRIJS_MORGEN = "stroomprijs_morgen.php"
     ENDPOINT_GASPRIJS_VANDAAG = "gasprijs_vandaag.php"
-
-    def __init__(self, client: AsyncClient, token: str) -> None:
-        """Initialize."""
-        self.client = client
-        self.token = token
 
     async def validate_token(self):
         """Test if the token is valid.
@@ -130,10 +127,7 @@ class EneverAPI:
         Note: counts towards request limit!
         """
         try:
-            params = {"token": self.token}
-            response = await self.client.get(
-                BASE_URL + self.ENDPOINT_GASPRIJS_VANDAAG, params=params
-            )
+            response = await self._fetch_raw(self.ENDPOINT_GASPRIJS_VANDAAG)
 
             match response.status_code:
                 case 200:
@@ -147,21 +141,19 @@ class EneverAPI:
 
     async def stroomprijs_vandaag(self) -> EneverData:
         """Return the electricity prices for today."""
-        return await self.__fetch(self.ENDPOINT_STROOMPRIJS_VANDAAG)
+        return await self._fetch_parsed(self.ENDPOINT_STROOMPRIJS_VANDAAG)
 
     async def stroomprijs_morgen(self) -> EneverData:
         """Return the electricity prices for tomorrow."""
-        return await self.__fetch(self.ENDPOINT_STROOMPRIJS_MORGEN)
+        return await self._fetch_parsed(self.ENDPOINT_STROOMPRIJS_MORGEN)
 
     async def gasprijs_vandaag(self) -> EneverData:
         """Return the gas prices for today."""
-        return await self.__fetch(self.ENDPOINT_GASPRIJS_VANDAAG)
+        return await self._fetch_parsed(self.ENDPOINT_GASPRIJS_VANDAAG)
 
-    async def __fetch(self, endpoint: str):
-        params = {"token": self.token}
-
+    async def _fetch_parsed(self, endpoint: str):
         try:
-            response = self.client.get(BASE_URL + endpoint, params=params)
+            response = await self._fetch_raw(endpoint)
 
             match response.status_code:
                 case 200:
@@ -176,3 +168,28 @@ class EneverAPI:
                     raise EneverError("HTTP status " + response.status_code)
         except TimeoutException as e:
             raise EneverCannotConnect from e
+
+    @abstractmethod
+    async def _fetch_raw(self, endpoint: str) -> Response:
+        raise NotImplementedError
+
+
+class ProductionEneverAPI(EneverAPI):
+    """Wrapper class for the Enever prijzenfeeds."""
+
+    def __init__(self, client: AsyncClient, token: str) -> None:
+        """Initialize."""
+        self.client = client
+        self.token = token
+
+    async def _fetch_raw(self, endpoint: str) -> Response:
+        params = {"token": self.token}
+        return await self.client.get(BASE_URL + endpoint, params=params)
+
+
+class MockEneverAPI(EneverAPI):
+    """Mock wrapper class for the Enever prijzenfeeds."""
+
+    async def _fetch_raw(self, endpoint: str) -> Response:
+        async with await anyio.open_file(f"/mock/{endpoint}.json") as f:
+            return Response(status_code=200, content=await f.read())

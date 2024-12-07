@@ -10,16 +10,17 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_TOKEN
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.httpx_client import get_async_client
 
-from .const import DOMAIN
-from .enever_api import EneverAPI, EneverCannotConnect, EneverInvalidToken
+from .const import CONF_ENTITIES_DEFAULT_ENABLED, DOMAIN
+from .enever_api import EneverCannotConnect, EneverInvalidToken
+from .enever_api_factory import get_enever_api
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_API_TOKEN): str,
+        vol.Required(CONF_ENTITIES_DEFAULT_ENABLED): bool,
     }
 )
 
@@ -29,7 +30,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]):
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
-    api = EneverAPI(get_async_client(hass), data[CONF_API_TOKEN])
+    api = get_enever_api(hass, data)
     await api.validate_token()
 
 
