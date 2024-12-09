@@ -10,17 +10,29 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_TOKEN
 from homeassistant.core import HomeAssistant
+import homeassistant.helpers.config_validation as cv
 
-from .const import CONF_ENTITIES_DEFAULT_ENABLED, DOMAIN
-from .enever_api import EneverCannotConnect, EneverInvalidToken
+from .const import (
+    CONF_ENTITIES_DEFAULT_ENABLED,
+    CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED,
+    CONF_ENTITIES_PROVIDERS_GAS_ENABLED,
+    DOMAIN,
+)
+from .enever_api import EneverCannotConnect, EneverInvalidToken, Providers
 from .enever_api_factory import get_enever_api
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_API_TOKEN): str,
-        vol.Required(CONF_ENTITIES_DEFAULT_ENABLED): bool,
+        vol.Required(CONF_API_TOKEN): cv.string,
+        vol.Required(CONF_ENTITIES_DEFAULT_ENABLED): cv.boolean,
+        vol.Optional(
+            CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED, default=[]
+        ): cv.multi_select(Providers.electricity()),
+        vol.Optional(CONF_ENTITIES_PROVIDERS_GAS_ENABLED, default=[]): cv.multi_select(
+            Providers.gas()
+        ),
     }
 )
 

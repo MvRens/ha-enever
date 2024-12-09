@@ -12,8 +12,11 @@
             "user": {
                 "data": {
                     "api_token": "API token",
-                    "entities_default_enabled": "Enable all entities"
-                }
+                    "entities_default_enabled": "Enable sensors for all providers",
+                    "entities_providers_electricity_enabled": "Enable electricity sensors for",
+                    "entities_providers_gas_enabled": "Enable gas sensors for"
+                },
+                "description": "By default all sensors are disabled to reduce clutter. You can either enable all sensors by default, enable the sensors for specific providers or enable them manually later in the Entities list for the Enever device."
             }
         }
     }

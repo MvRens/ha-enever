@@ -2,11 +2,12 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date
-from decimal import Decimal
+from datetime import datetime
 
 import anyio
 from httpx import AsyncClient, Response, TimeoutException
+
+from homeassistant.util.dt import parse_datetime
 
 
 class EneverError(Exception):
@@ -53,9 +54,23 @@ class Providers:
     """Helper methods for providers."""
 
     @staticmethod
+    def electricity() -> dict[str, str]:
+        """Return a dictionary for all providers of electricity price data."""
+        return {
+            key: PROVIDERS[key]
+            for key in PROVIDERS
+            if Providers.supports_electricity(key)
+        }
+
+    @staticmethod
     def electricity_keys() -> list[str]:
         """Return the keys for all providers of electricity price data."""
         return [key for key in PROVIDERS if Providers.supports_electricity(key)]
+
+    @staticmethod
+    def gas() -> dict[str, str]:
+        """Return a dictionary for all providers of gas price data."""
+        return {key: PROVIDERS[key] for key in PROVIDERS if Providers.supports_gas(key)}
 
     @staticmethod
     def gas_keys() -> list[str]:
@@ -88,16 +103,18 @@ class Providers:
 class EneverData:
     """Parsed data from an Enever endpoint."""
 
-    datum: date
-    prijs: dict[str, Decimal]
+    datum: datetime
+    prijs: dict[str, float]
 
     @staticmethod
     def from_dict(item: dict):
         """Parse a data item in a JSON response from an API call."""
         return EneverData(
-            datum=item["datum"],
+            datum=parse_datetime(item["datum"]),
             prijs={
-                key: item.get("prijs" + key, None) for key in PROVIDERS if key in item
+                key: float(item.get("prijs" + key, None))
+                for key in PROVIDERS
+                if "prijs" + key in item
             },
         )
 
@@ -139,15 +156,15 @@ class EneverAPI(ABC):
         except TimeoutException as e:
             raise EneverCannotConnect from e
 
-    async def stroomprijs_vandaag(self) -> EneverData:
+    async def stroomprijs_vandaag(self) -> EneverResponse:
         """Return the electricity prices for today."""
         return await self._fetch_parsed(self.ENDPOINT_STROOMPRIJS_VANDAAG)
 
-    async def stroomprijs_morgen(self) -> EneverData:
+    async def stroomprijs_morgen(self) -> EneverResponse:
         """Return the electricity prices for tomorrow."""
         return await self._fetch_parsed(self.ENDPOINT_STROOMPRIJS_MORGEN)
 
-    async def gasprijs_vandaag(self) -> EneverData:
+    async def gasprijs_vandaag(self) -> EneverResponse:
         """Return the gas prices for today."""
         return await self._fetch_parsed(self.ENDPOINT_GASPRIJS_VANDAAG)
 
@@ -188,7 +205,12 @@ class ProductionEneverAPI(EneverAPI):
 
 
 class MockEneverAPI(EneverAPI):
-    """Mock wrapper class for the Enever prijzenfeeds."""
+    """Mock wrapper class for the Enever prijzenfeeds.
+
+    To use it, mount the 'mockdata' folder in the devcontainer to /mock.
+    It's not a proper mock for automated testing, but good enough for quick manual tests
+    without using up too many API tokens.
+    """
 
     async def _fetch_raw(self, endpoint: str) -> Response:
         async with await anyio.open_file(f"/mock/{endpoint}.json") as f:
