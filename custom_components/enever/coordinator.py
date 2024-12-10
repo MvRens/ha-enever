@@ -265,7 +265,7 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
         if data.tomorrow is None or len(data.tomorrow) == 0:
-            return True
+            return now.hour >= 15
 
         # Prices for tomorrow will usually be available from 15:00, at most 16:00
         data_validto = datetime.combine(
