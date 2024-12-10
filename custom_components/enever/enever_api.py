@@ -7,7 +7,7 @@ from datetime import datetime
 import anyio
 from httpx import AsyncClient, Response, TimeoutException
 
-from homeassistant.util.dt import parse_datetime
+from homeassistant.util.dt import as_local, parse_datetime
 
 
 class EneverError(Exception):
@@ -110,7 +110,7 @@ class EneverData:
     def from_dict(item: dict):
         """Parse a data item in a JSON response from an API call."""
         return EneverData(
-            datum=parse_datetime(item["datum"]),
+            datum=as_local(parse_datetime(item["datum"])),
             prijs={
                 key: float(item.get("prijs" + key, None))
                 for key in PROVIDERS
@@ -175,6 +175,9 @@ class EneverAPI(ABC):
             match response.status_code:
                 case 200:
                     response_payload = response.json()
+                    if response_payload["code"] == "2":
+                        raise EneverInvalidToken
+
                     if response_payload["code"] != "5":
                         raise EneverError(
                             "Unexpected code in response: " + response_payload["code"]

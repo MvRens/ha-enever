@@ -1,6 +1,6 @@
 """Enever sensors."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -65,7 +65,7 @@ class Unit:
     EUR_M3 = f"{CURRENCY_EURO}/{UnitOfVolume.CUBIC_METERS}"
 
 
-class EneverGasSensorEntity(EneverEntity, SensorEntity):
+class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
     """Defines a Enever gas price sensor."""
 
     def __init__(
@@ -78,7 +78,7 @@ class EneverGasSensorEntity(EneverEntity, SensorEntity):
         super().__init__(coordinator, provider, default_enabled)
 
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_gas_{provider}"
-        self._attr_name = f"gasprijs {Providers.get_display_name(provider)}"
+        self._attr_name = f"Gasprijs {Providers.get_display_name(provider)}"
         self._attr_icon = "mdi:gas-burner"
         self._attr_state_class = SensorStateClass.TOTAL
         self._attr_device_class = SensorDeviceClass.MONETARY
@@ -88,10 +88,22 @@ class EneverGasSensorEntity(EneverEntity, SensorEntity):
     def _handle_enever_coordinator_update(
         self, data: EneverCoordinatorData, now: datetime
     ) -> None:
-        if data.today is None or data.today.count == 0:
+        if data.today is None or len(data.today) == 0:
             return
 
-        self._attr_native_value = data.today[0].prijs.get(self.provider)
+        # Since gas prices are not known upfront and immediately effective,
+        # allow yesterday's data to be "valid" for a bit longer while the coordinator
+        # attempts to update the data as soon as possible. A slightly incorrect price is
+        # still better than a missing price for the Energy Dashboard.
+        data_datetime = data.today[0].datum
+        data_validfrom = data_datetime - timedelta(hours=2)
+        data_validto = data_validfrom + timedelta(hours=26)
+
+        self._attr_native_value = (
+            data.today[0].prijs.get(self.provider)
+            if data_validfrom <= now <= data_validto
+            else None
+        )
 
 
 class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
@@ -112,7 +124,7 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             f"{coordinator.config_entry.entry_id}_electricity_{provider}"
         )
 
-        self._attr_name = f"stroomprijs {Providers.get_display_name(provider)}"
+        self._attr_name = f"Stroomprijs {Providers.get_display_name(provider)}"
         self._attr_icon = "mdi:lightning-bolt"
         self._attr_state_class = SensorStateClass.TOTAL
         self._attr_device_class = SensorDeviceClass.MONETARY
@@ -122,30 +134,60 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
     def _handle_enever_coordinator_update(
         self, data: EneverCoordinatorData, now: datetime
     ) -> None:
-        # TODO check date for today, or use tomorrow if required
-        today = data.today
+        date_today = now.date()
+        date_tomorrow = date_today + timedelta(days=1)
 
-        if today is None:
-            return
-
-        self._attr_native_value = next(
-            (
-                data_item.prijs.get(self.provider)
-                for data_item in today
-                if data_item.datum.hour == now.hour
-            ),
-            None,
+        # Figure out if the 'today' feed is indeed still for today, otherwise
+        # try to use yesterday's tomorrow feed. This ensures we don't need to update
+        # exactly at 12 o'clock midnight for accurate data.
+        today = (
+            data.today
+            if data.today is not None
+            and len(data.today) > 0
+            and data.today[0].datum.date() == date_today
+            else data.tomorrow
+            if data.tomorrow is not None
+            and len(data.tomorrow) > 0
+            and data.tomorrow[0].datum.date() == date_today
+            else None
         )
 
-        self._attr_extra_state_attributes["today"] = [
-            {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
-            for data_item in today
-        ]
+        tomorrow = (
+            data.tomorrow
+            if data.tomorrow is not None
+            and len(data.tomorrow) > 0
+            and data.tomorrow[0].datum.date() == date_tomorrow
+            else None
+        )
+
+        # Set the entity value to the price for the current hour for use in the Energy Dashboard
+        self._attr_native_value = (
+            next(
+                (
+                    data_item.prijs.get(self.provider)
+                    for data_item in today
+                    if data_item.datum.hour == now.hour
+                ),
+                None,
+            )
+            if today is not None
+            else None
+        )
+
+        # Expose the full data for today and tomorrow as attributes (if yet known) for use in graphs
+        self._attr_extra_state_attributes["today"] = (
+            [
+                {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
+                for data_item in today
+            ]
+            if today is not None
+            else None
+        )
         self._attr_extra_state_attributes["tomorrow"] = (
             [
                 {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
-                for data_item in data.tomorrow
+                for data_item in tomorrow
             ]
-            if data.tomorrow is not None
+            if tomorrow is not None
             else None
         )

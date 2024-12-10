@@ -6,7 +6,7 @@ from homeassistant.helpers.httpx_client import get_async_client
 
 from .enever_api import EneverAPI, MockEneverAPI, ProductionEneverAPI
 
-MOCK = True
+MOCK = False
 
 
 def get_enever_api(hass: HomeAssistant, data: dict[str, any]) -> EneverAPI:
