@@ -1,7 +1,7 @@
 # Home Assistant Enever integration
 
 > [!WARNING]
-> This integration is at it's early stages in testing. This is my first Home Assistant integration, or Python project for that matter, expect bugs.
+> This integration still young. This is my first Home Assistant integration, or Python project for that matter, so keep an eye out for those pesky bugs. I am running this in production in my own Home Assistance instance so I hope to spot issues early that way and appreciate any feedback.
 
 A non-official Home Assistant integration for [Enever.nl](https://enever.nl/) which provides sensors for the gas and electricity price feed data.
 
