@@ -2,6 +2,7 @@
   "domain": "enever",
   "name": "Enever",
   "codeowners": ["@MvRens"],
+  "version": "0.1.0",
   "config_flow": true,
   "documentation": "https://github.com/MvRens/ha-enever",
   "iot_class": "cloud_polling"

@@ -60,7 +60,7 @@ Follow the instructions for [setting up a development environment](https://devel
 There is probably a better way, and the downside is that you need to trick HA into accepting the component.
 
 - Modify `script/hassfest/quality_scale.py` and add `"enever"` to the INTEGRATIONS_WITHOUT_QUALITY_SCALE_FILE array.
-- Modify `manifest.json` to pass the schema validation:
+- Modify `manifest.json` to pass the schema validation. Remove the `"version"` key and add:
   ```json
   "documentation": "https://www.home-assistant.io/integrations/enever",
   ```
