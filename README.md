@@ -31,6 +31,11 @@ The gas price is fetched every day at 6:00 when it should be refreshed. The new 
 
 If the price feed is not updated it will try again every 15 minutes. The entity will keep the value for the previous day for up to 2 hours, as having a slightly incorrect price is still better than no price for calculating total energy cost.
 
+### API request counter
+
+This sensor is enabled by default and keeps track of the amount of API requests performed this month by this integration (not including the one required for validating the token during setup). This is useful to see if the integration is behaving nicely, especially if you are not a supporter and have a limited amount of requests available. If this counter is significantly higher than expected, be sure to open an issue.
+Note: this may differ from the actual requests remaining, as all attempts are recorded, including where the API is unreachable.
+
 ## Installation
 
 ### HACS

@@ -93,8 +93,17 @@ class EneverCoordinatorData:
         }
 
 
+class EneverCoordinatorObserver:
+    """Implemented by observers."""
+
+    def count_api_request(self) -> None:
+        """Call before an API request is made."""
+
+
 class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC):
     """Update coordinator for Enever feeds."""
+
+    _observers: list[EneverCoordinatorObserver] = []
 
     def __init__(self, hass: HomeAssistant, api: EneverAPI) -> None:
         """Initialize the update coordinator."""
@@ -111,6 +120,14 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             update_interval=self._get_update_interval(None),
             always_update=False,
         )
+
+    def attach(self, observer: EneverCoordinatorObserver) -> None:
+        """Attach an observer."""
+        self._observers.append(observer)
+
+    def detach(self, observer: EneverCoordinatorObserver) -> None:
+        """Detach a previously attached observer."""
+        self._observers.remove(observer)
 
     async def _async_update_data(self) -> EneverCoordinatorData:
         """Update the data."""
@@ -135,6 +152,8 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         if self._allow_request_today(now, new_data) and self._should_update_today(
             now, new_data
         ):
+            self._count_api_request()
+
             response = await self._fetch_today()
             if response is not None:
                 new_data.today = response.data
@@ -144,6 +163,8 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         if self._allow_request_tomorrow(now, new_data) and self._should_update_tomorrow(
             now, new_data
         ):
+            self._count_api_request()
+
             response = await self._fetch_tomorrow()
             if response is not None:
                 new_data.tomorrow = response.data
@@ -204,6 +225,10 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
     ) -> bool:
         """Determine if the data for tomorrow needs updating."""
         raise NotImplementedError
+
+    def _count_api_request(self):
+        for observer in self._observers:
+            observer.count_api_request()
 
     def _get_update_interval(self, data: EneverCoordinatorData) -> timedelta:
         """Get new update interval."""

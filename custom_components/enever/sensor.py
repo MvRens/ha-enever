@@ -1,16 +1,20 @@
 """Enever sensors."""
 
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfVolume
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_track_time_change
+import homeassistant.util.dt as dt_util
 
 from .const import (
     CONF_ENTITIES_DEFAULT_ENABLED,
@@ -18,7 +22,11 @@ from .const import (
     CONF_ENTITIES_PROVIDERS_GAS_ENABLED,
     DOMAIN,
 )
-from .coordinator import EneverCoordinatorData, EneverUpdateCoordinator
+from .coordinator import (
+    EneverCoordinatorData,
+    EneverCoordinatorObserver,
+    EneverUpdateCoordinator,
+)
 from .enever_api import Providers
 from .entity import EneverEntity, EneverHourlyEntity
 
@@ -43,17 +51,25 @@ async def async_setup_entry(
     )
     enabledGasProviders = Providers.electricity_keys() if allEnabled else gasEnabled
 
-    entities: list[EneverEntity] = [
-        EneverGasSensorEntity(
-            gasCoordinator, provider, provider in enabledElectricityProviders
-        )
-        for provider in Providers.gas_keys()
-    ] + [
-        EneverElectricitySensorEntity(
-            electricityCoordinator, provider, provider in enabledGasProviders
-        )
-        for provider in Providers.electricity_keys()
-    ]
+    entities: list[EneverEntity] = (
+        [
+            EneverGasSensorEntity(
+                gasCoordinator, provider, provider in enabledElectricityProviders
+            )
+            for provider in Providers.gas_keys()
+        ]
+        + [
+            EneverElectricitySensorEntity(
+                electricityCoordinator, provider, provider in enabledGasProviders
+            )
+            for provider in Providers.electricity_keys()
+        ]
+        + [
+            EneverRequestCountSensorEntity(
+                entry, [gasCoordinator, electricityCoordinator]
+            )
+        ]
+    )
 
     # TODO add sensors for raw API data? -> maybe later, personally I have no usecase for it except debugging / insight
 
@@ -200,3 +216,103 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         self._attr_extra_state_attributes["tomorrow_lastrequest"] = (
             data.tomorrow_lastrequest
         )
+
+
+class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
+    """Defines a sensor which monitors the amount of Enever API requests."""
+
+    _entry: ConfigEntry
+    _coordinators: list[EneverUpdateCoordinator]
+
+    _monthly_timer = None
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self, entry: ConfigEntry, coordinators: list[EneverUpdateCoordinator]
+    ) -> None:
+        """Initialize a Enever sensor entity."""
+        self._entry = entry
+        self._coordinators = coordinators
+
+        self._attr_unique_id = f"{entry.entry_id}_api_requests"
+
+        self._attr_name = "API requests"
+        self._attr_icon = "mdi:api"
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_entity_registry_enabled_default = True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this Enever device."""
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._entry.entry_id)},
+            name=self._entry.title,
+            manufacturer="Enever",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Handle addition to hass: restore state and register to dispatch."""
+        await super().async_added_to_hass()
+
+        state = await self.async_get_last_state()
+        if state and state.state is not None:
+            try:
+                self._attr_native_value = int(state.state)
+            except ValueError:
+                self._attr_native_value = 0
+
+            self._attr_extra_state_attributes = state.attributes
+            self.async_write_ha_state()
+
+        for coordinator in self._coordinators:
+            coordinator.attach(self)
+
+        self._monthly_timer = async_track_time_change(
+            self.hass, self._handle_day_change, 0, 0, 0
+        )
+
+        if self._reset_month(dt_util.now()):
+            self._async_write_ha_state()
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister signal dispatch listeners when being removed."""
+        for coordinator in self._coordinators:
+            coordinator.detach(self)
+
+        if self._monthly_timer is not None:
+            self._monthly_timer()
+            self._monthly_timer = None
+
+        await super().async_will_remove_from_hass()
+
+    def count_api_request(self) -> None:
+        """Call before an API request is made."""
+        self._reset_month(dt_util.now())
+
+        self._attr_native_value = (
+            self._attr_native_value + 1 if self._attr_native_value is not None else 1
+        )
+
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_day_change(self, now: datetime) -> None:
+        if self._reset_month(now):
+            self.async_write_ha_state()
+
+    def _reset_month(self, now: datetime) -> bool:
+        start_of_month = now.date().replace(day=1)
+
+        if (
+            self._attr_extra_state_attributes is None
+            or "month" not in self._attr_extra_state_attributes
+            or date.fromisoformat(self._attr_extra_state_attributes["month"])
+            != start_of_month
+        ):
+            # New month, reset counter
+            self._attr_native_value = 0
+            self._attr_extra_state_attributes = {"month": start_of_month}
+            return True
+
+        return False
