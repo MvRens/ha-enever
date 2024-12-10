@@ -305,7 +305,7 @@ class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
         start_of_month = now.date().replace(day=1)
 
         if (
-            self._attr_extra_state_attributes is None
+            not hasattr(self, "_attr_extra_state_attributes")
             or "month" not in self._attr_extra_state_attributes
             or date.fromisoformat(self._attr_extra_state_attributes["month"])
             != start_of_month
