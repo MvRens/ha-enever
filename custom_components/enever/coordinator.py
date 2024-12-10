@@ -24,9 +24,7 @@ STORAGE_VERSION = 1
 # try again later. The lower the faster prices will update, but the more API
 # tokens will be used up so lower it with caution. Really only relevant for gas prices,
 # since electricity can use yesterday's 'tomorrow' prices in the meantime.
-# MIN_TIME_BETWEEN_REQUESTS = timedelta(minutes=15)
-# TODO restore before production
-MIN_TIME_BETWEEN_REQUESTS = timedelta(minutes=1)
+MIN_TIME_BETWEEN_REQUESTS = timedelta(minutes=15)
 
 
 def _data_from_dict(data: dict[str, any] | None) -> list[EneverData] | None:
@@ -129,6 +127,10 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             tomorrow=self.data.tomorrow,
             tomorrow_lastrequest=self.data.tomorrow_lastrequest,
         )
+
+        # TODO we should be able to use tomorrow's data for today the next day,
+        # assuming the prices do not change. This saves at least one request per day
+        # after the first day. Is that worth it?
 
         if self._allow_request_today(now, new_data) and self._should_update_today(
             now, new_data

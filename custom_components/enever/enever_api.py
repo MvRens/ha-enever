@@ -57,9 +57,9 @@ class Providers:
     def electricity() -> dict[str, str]:
         """Return a dictionary for all providers of electricity price data."""
         return {
-            key: PROVIDERS[key]
-            for key in PROVIDERS
-            if Providers.supports_electricity(key)
+            pair[0]: pair[1]
+            for pair in PROVIDERS.items()
+            if Providers.supports_electricity(pair[0])
         }
 
     @staticmethod
@@ -70,7 +70,11 @@ class Providers:
     @staticmethod
     def gas() -> dict[str, str]:
         """Return a dictionary for all providers of gas price data."""
-        return {key: PROVIDERS[key] for key in PROVIDERS if Providers.supports_gas(key)}
+        return {
+            pair[0]: pair[1]
+            for pair in PROVIDERS.items()
+            if Providers.supports_gas(pair[0])
+        }
 
     @staticmethod
     def gas_keys() -> list[str]:

@@ -1,7 +1,7 @@
 # Home Assistant Enever integration
 
 > [!WARNING]
-> This integration is very much a work in progress and does not actually work yet.
+> This integration is at it's early stages in testing. This is my first Home Assistant integration, or Python project for that matter, expect bugs.
 
 A non-official Home Assistant integration for [Enever.nl](https://enever.nl/) which provides sensors for the gas and electricity price feed data.
 
@@ -13,9 +13,21 @@ There are a few examples of retrieving this data with the built-in RESTful integ
 
 ## Provided sensors
 
-TODO
+For each supported provider one or two sensors are added for the current electricity price (&euro;/kWh) and/or gas price (&euro;/m&sup3;). These can be used directly as an "entity with current price" in the Energy Dashboard.
 
-Note: by default all provider-specific sensors are disabled, to prevent clutter. Enable the ones you are interested in on the Entities settings page or check "Enable all entities" when first setting up the integration.
+These entities are only enabled by default if specified during setup, so you can easily only enable the provider(s) you are interested in. See the Installation section for a screenshot.
+
+### Electricity
+
+The electricity price is fetched from two feeds: today and tomorrow. The entity will update every hour based on the price for the current hour and day based on these two feeds.
+
+The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in 15 minutes. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
+
+### Gas
+
+The gas price is fetched every day at 6:00 when it should be refreshed. The new price is effective immediately.
+
+If the price feed is not updated it will try again every 15 minutes. The entity will keep the value for the previous day for up to 2 hours, as having a slightly incorrect price is still better than no price for calculating total energy cost.
 
 ## Installation
 
@@ -27,4 +39,26 @@ As I'm personally running Home Assistant in a Docker container, I am not really 
 
 In the 'custom_components' folder of your Home Assistant installation, create a folder 'enever' and place the files from this repository in that folder. Restart Home Assistant.
 
-The integration should now be available in the Settings.
+### Adding to Home Assistant
+
+After installation the integration should be available under Settings - Devices & services. Click the Add integration button and search for "Enever".
+
+![Setup](./docs/config_flow.png)
+
+## Developing
+
+Follow the instructions for [setting up a development environment](https://developers.home-assistant.io/docs/development_environment). I've chosen VS Code + DevContainers. To get better code checking I have not mounted the code as a custom_component, but instead as a native component by adding the following to the devcontainer.json (change the source path accordingly):
+
+```json
+"mounts": [
+    "source=${localEnv:HOME}/Projects/ha-enever/custom_components/enever,target=${containerWorkspaceFolder}/homeassistant/components/enever,type=bind"
+],
+```
+
+There is probably a better way, and the downside is that you need to trick HA into accepting the component.
+
+- Modify `script/hassfest/quality_scale.py` and add `"enever"` to the INTEGRATIONS_WITHOUT_QUALITY_SCALE_FILE array.
+- Modify `manifest.json` to pass the schema validation:
+  ```json
+  "documentation": "https://www.home-assistant.io/integrations/enever",
+  ```

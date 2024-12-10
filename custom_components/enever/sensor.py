@@ -55,6 +55,8 @@ async def async_setup_entry(
         for provider in Providers.electricity_keys()
     ]
 
+    # TODO add sensors for raw API data? -> maybe later, personally I have no usecase for it except debugging / insight
+
     async_add_entities(entities)
 
 

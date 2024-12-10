@@ -29,9 +29,11 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Required(CONF_ENTITIES_DEFAULT_ENABLED): cv.boolean,
         vol.Optional(
             CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED, default=[]
-        ): cv.multi_select(Providers.electricity()),
+        ): cv.multi_select(
+            dict(sorted(Providers.electricity().items(), key=lambda item: item[1]))
+        ),
         vol.Optional(CONF_ENTITIES_PROVIDERS_GAS_ENABLED, default=[]): cv.multi_select(
-            Providers.gas()
+            dict(sorted(Providers.gas().items(), key=lambda item: item[1]))
         ),
     }
 )
