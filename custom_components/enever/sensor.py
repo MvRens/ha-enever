@@ -107,6 +107,8 @@ class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
             else None
         )
 
+        self._attr_extra_state_attributes["lastrequest"] = data.today_lastrequest
+
 
 class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
     """Defines a Enever electricity price sensor."""
@@ -192,4 +194,9 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             ]
             if tomorrow is not None
             else None
+        )
+
+        self._attr_extra_state_attributes["today_lastrequest"] = data.today_lastrequest
+        self._attr_extra_state_attributes["tomorrow_lastrequest"] = (
+            data.tomorrow_lastrequest
         )

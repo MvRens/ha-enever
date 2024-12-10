@@ -23,6 +23,8 @@ The electricity price is fetched from two feeds: today and tomorrow. The entity 
 
 The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in 15 minutes. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
 
+Electricity entities also provide the raw data as two attributes, "Today" and "Tomorrow". These contain a list where each entry has a key "datum" containing the date and time, and "prijs" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "Tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "Today" by then.
+
 ### Gas
 
 The gas price is fetched every day at 6:00 when it should be refreshed. The new price is effective immediately.

@@ -57,7 +57,6 @@ class EneverEntity(CoordinatorEntity[EneverUpdateCoordinator], ABC):
 
         self._attr_extra_state_attributes = {}
         self._handle_enever_coordinator_update(self.coordinator.data, now)
-        self._attr_extra_state_attributes["lastupdate"] = now
         super()._handle_coordinator_update()
 
     @abstractmethod
