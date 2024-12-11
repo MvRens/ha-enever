@@ -11,6 +11,19 @@ There are a few examples of retrieving this data with the built-in RESTful integ
 2. It is tricky to get the current price right. Either the data for "today" needs to be updated at midnight exactly, or a complex template is required to get this data from the "tomorrow" feed in the meantime.
 3. The update time for the feeds is not guaranteed, so a check and retry later may be required if you want to get the new prices as soon as possible.
 
+## Table of contents
+  * [Provided sensors](#provided-sensors)
+    + [Electricity](#electricity)
+    + [Gas](#gas)
+    + [API request counter](#api-request-counter)
+  * [Installation](#installation)
+    + [HACS](#hacs)
+    + [Manual](#manual)
+  * [Configuration](#configuration)
+    + [Adding to Home Assistant](#adding-to-home-assistant)
+    + [Creating a chart for upcoming prices](#creating-a-chart-for-upcoming-prices)
+  * [Developing](#developing)
+
 ## Provided sensors
 
 For each supported provider one or two sensors are added for the current electricity price (&euro;/kWh) and/or gas price (&euro;/m&sup3;). These can be used directly as an "entity with current price" in the Energy Dashboard.
@@ -46,11 +59,70 @@ As I'm personally running Home Assistant in a Docker container, I am not really 
 
 In the 'custom_components' folder of your Home Assistant installation, create a folder 'enever' and place the files from this repository in that folder. Restart Home Assistant.
 
+## Configuration
 ### Adding to Home Assistant
 
 After installation the integration should be available under Settings - Devices & services. Click the Add integration button and search for "Enever".
 
 ![Setup](./docs/config_flow.png)
+
+### Creating a chart for upcoming prices
+
+Since the electriciy prices are known in advance you can use the attributes to create a chart. Here is an example using the [ApexCharts card](https://github.com/RomRider/apexcharts-card):
+
+![Chart](./docs/chart.png)
+
+```yaml
+type: custom:apexcharts-card
+update_interval: 10m
+graph_span: 1d
+span:
+  end: day
+now:
+  show: true
+apex_config:
+  grid:
+    show: true
+  legend:
+    show: false
+  title:
+    text: Stroomprijs vandaag en morgen
+    align: center
+    floating: true
+  tooltip:
+    "y":
+      formatter: |
+        EVAL:function(val) {          
+          return val.toFixed(3) + " €/kWh";
+        }
+yaxis:
+  - show: true
+    max: ~0.7
+    min: 0
+    decimals: 1
+    apex_config:
+      tickAmount: 7
+series:
+  - entity: sensor.enever_stroomprijs_nextenergy
+    type: line
+    data_generator: |
+      if (!entity.attributes.tomorrow) return [];
+      return entity.attributes.tomorrow.map((entry) => {
+        const offsetForToday = new Date(entry.datum);
+        offsetForToday.setDate(offsetForToday.getDate() - 1);
+        
+        return [offsetForToday, parseFloat(entry.prijs)];
+      });
+    color: "#c0c0c0"
+  - entity: sensor.enever_stroomprijs_nextenergy
+    type: line
+    data_generator: |
+      if (!entity.attributes.today) return [];
+      return entity.attributes.today.map((entry) => {
+        return [new Date(entry.datum), parseFloat(entry.prijs)];        
+      });
+    color: "#03a9f4"
+```
 
 ## Developing
 
