@@ -303,13 +303,18 @@ class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
 
     def _reset_month(self, now: datetime) -> bool:
         start_of_month = now.date().replace(day=1)
+        counter_month_attr = (
+            self._attr_extra_state_attributes.get("month")
+            if hasattr(self, "_attr_extra_state_attributes")
+            else None
+        )
+        counter_month = (
+            date.fromisoformat(counter_month_attr)
+            if counter_month_attr is not None
+            else None
+        )
 
-        if (
-            not hasattr(self, "_attr_extra_state_attributes")
-            or "month" not in self._attr_extra_state_attributes
-            or date.fromisoformat(self._attr_extra_state_attributes["month"])
-            != start_of_month
-        ):
+        if counter_month != start_of_month:
             # New month, reset counter
             self._attr_native_value = 0
             self._attr_extra_state_attributes = {"month": start_of_month}
