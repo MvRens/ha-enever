@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import CONF_ENTITY_APICOUNTER_ENABLED, DOMAIN
 from .coordinator import (
     ElectricityPricesCoordinator,
     EneverUpdateCoordinator,
@@ -15,6 +17,8 @@ from .coordinator import (
 from .enever_api_factory import get_enever_api
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -41,6 +45,33 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old entry."""
+    _LOGGER.debug(
+        "Migrating configuration from version %s.%s",
+        entry.version,
+        entry.minor_version,
+    )
+
+    if entry.version == 1:
+        new_data = {**entry.data}
+
+        # 1.1 -> 1.2: Added API counter config
+        if entry.minor_version < 2:
+            new_data = {**new_data, CONF_ENTITY_APICOUNTER_ENABLED: False}
+
+            hass.config_entries.async_update_entry(
+                entry, data=new_data, minor_version=2, version=1
+            )
+
+    _LOGGER.debug(
+        "Migration to configuration version %s.%s successful",
+        entry.version,
+        entry.minor_version,
+    )
+    return True
 
 
 async def _async_init_coordinator(

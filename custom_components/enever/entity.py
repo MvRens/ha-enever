@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 import homeassistant
-from homeassistant.core import callback
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -69,7 +69,7 @@ class EneverEntity(CoordinatorEntity[EneverUpdateCoordinator], ABC):
 class EneverHourlyEntity(EneverEntity):
     """Defines a base Enever entity which updates every hour."""
 
-    _hourly_timer = None
+    _hourly_timer: CALLBACK_TYPE | None
 
     async def async_added_to_hass(self) -> None:
         """Run when entity about to be added to hass."""

@@ -12,6 +12,7 @@
             "user": {
                 "data": {
                     "api_token": "API token",
+                    "entities_apicounter_enabled": "Enable the API request counter",
                     "entities_default_enabled": "Enable all sensors for all providers",
                     "entities_providers_electricity_enabled": "Enable electricity sensors for...",
                     "entities_providers_gas_enabled": "Enable gas sensors for..."
