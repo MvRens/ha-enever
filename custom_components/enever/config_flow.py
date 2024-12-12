@@ -16,6 +16,7 @@ from .const import (
     CONF_ENTITIES_DEFAULT_ENABLED,
     CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED,
     CONF_ENTITIES_PROVIDERS_GAS_ENABLED,
+    CONF_ENTITY_APICOUNTER_ENABLED,
     DOMAIN,
 )
 from .enever_api import EneverCannotConnect, EneverInvalidToken, Providers
@@ -35,6 +36,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         vol.Optional(CONF_ENTITIES_PROVIDERS_GAS_ENABLED, default=[]): cv.multi_select(
             dict(sorted(Providers.gas().items(), key=lambda item: item[1]))
         ),
+        vol.Required(CONF_ENTITY_APICOUNTER_ENABLED): cv.boolean,
     }
 )
 
@@ -52,6 +54,7 @@ class ConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Enever."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

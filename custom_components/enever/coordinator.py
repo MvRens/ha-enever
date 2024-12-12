@@ -65,16 +65,21 @@ def _str_to_datetime(value: str | None) -> datetime | None:
 class EneverCoordinatorData:
     """The data as cached by an EneverUpdateCoordinator."""
 
-    today: list[EneverData] | None = None
-    today_lastrequest: datetime | None = None
-    tomorrow: list[EneverData] | None = None
-    tomorrow_lastrequest: datetime | None = None
+    today: list[EneverData] | None
+    today_lastrequest: datetime | None
+    tomorrow: list[EneverData] | None
+    tomorrow_lastrequest: datetime | None
 
     @staticmethod
     def from_dict(data: dict[str, any] | None) -> EneverCoordinatorData:
         """Initialize from a dictionary for serialization."""
         if data is None:
-            return EneverCoordinatorData()
+            return EneverCoordinatorData(
+                today=None,
+                today_lastrequest=None,
+                tomorrow=None,
+                tomorrow_lastrequest=None,
+            )
 
         return EneverCoordinatorData(
             today=_data_from_dict(data["today"]),
@@ -103,7 +108,7 @@ class EneverCoordinatorObserver:
 class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC):
     """Update coordinator for Enever feeds."""
 
-    _observers: list[EneverCoordinatorObserver] = []
+    _observers: list[EneverCoordinatorObserver]
 
     def __init__(self, hass: HomeAssistant, api: EneverAPI) -> None:
         """Initialize the update coordinator."""
@@ -112,6 +117,8 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         self.store = Store[EneverCoordinatorData](
             hass, STORAGE_VERSION, f"{DOMAIN}.{self._get_storage_key()}"
         )
+
+        self._observers = []
 
         super().__init__(
             hass,
