@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfVolume
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_time_change
@@ -20,6 +20,7 @@ from .const import (
     CONF_ENTITIES_DEFAULT_ENABLED,
     CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED,
     CONF_ENTITIES_PROVIDERS_GAS_ENABLED,
+    CONF_ENTITY_APICOUNTER_ENABLED,
     DOMAIN,
 )
 from .coordinator import (
@@ -45,6 +46,7 @@ async def async_setup_entry(
     allEnabled = entry.data[CONF_ENTITIES_DEFAULT_ENABLED]
     electricityEnabled = entry.data[CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED]
     gasEnabled = entry.data[CONF_ENTITIES_PROVIDERS_GAS_ENABLED]
+    apiCounterEnabled = entry.data[CONF_ENTITY_APICOUNTER_ENABLED]
 
     enabledElectricityProviders = (
         Providers.electricity_keys() if allEnabled else electricityEnabled
@@ -66,7 +68,7 @@ async def async_setup_entry(
         ]
         + [
             EneverRequestCountSensorEntity(
-                entry, [gasCoordinator, electricityCoordinator]
+                entry, [gasCoordinator, electricityCoordinator], apiCounterEnabled
             )
         ]
     )
@@ -223,24 +225,27 @@ class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
 
     _entry: ConfigEntry
     _coordinators: list[EneverUpdateCoordinator]
-
-    _monthly_timer = None
+    _monthly_timer: CALLBACK_TYPE | None
 
     _attr_has_entity_name = True
 
     def __init__(
-        self, entry: ConfigEntry, coordinators: list[EneverUpdateCoordinator]
+        self,
+        entry: ConfigEntry,
+        coordinators: list[EneverUpdateCoordinator],
+        default_enabled: bool,
     ) -> None:
         """Initialize a Enever sensor entity."""
         self._entry = entry
         self._coordinators = coordinators
+        self._monthly_timer = None
 
         self._attr_unique_id = f"{entry.entry_id}_api_requests"
 
         self._attr_name = "API requests"
         self._attr_icon = "mdi:api"
         self._attr_state_class = SensorStateClass.TOTAL
-        self._attr_entity_registry_enabled_default = True
+        self._attr_entity_registry_enabled_default = default_enabled
 
     @property
     def device_info(self) -> DeviceInfo:
