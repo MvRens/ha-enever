@@ -53,7 +53,7 @@ Note: this may differ from the actual requests remaining, as all attempts are re
 
 ### HACS
 
-As I'm personally running Home Assistant in a Docker container, I am not really familiar with HACS. I have followed the guidelines to the best of my knowledge to get this repository ready for HACS, but did not test it. Feel free to open an issue or pull request if changes are required.
+Go to the HACS dashboard, click on the menu in the top right corner and select 'Custom repositories'. For the Repository field, enter `https://github.com/MvRens/ha-enever`. Select `Integration` as the Type and click 'Add'. A new entry should appear at the top of the dialog and you can now close it. Search for 'Enever' in the store to download and install it.
 
 ### Manual
 
