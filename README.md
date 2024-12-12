@@ -57,7 +57,7 @@ As I'm personally running Home Assistant in a Docker container, I am not really 
 
 ### Manual
 
-In the 'custom_components' folder of your Home Assistant installation, create a folder 'enever' and place the files from this repository in that folder. Restart Home Assistant.
+Copy the contents of the `custom_components/enever/` folder in this repository and place it under a `custom_components/enever/` folder in your Home Assistant installation's configuration path. The other files and folders in this repository (such as hacs.json or this README) are not required.
 
 ## Configuration
 ### Adding to Home Assistant
