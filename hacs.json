@@ -2,5 +2,5 @@
   "name": "Enever",
   "country": "NL",
   "render_readme": true,
-  "contents_in_root": true
+  "contents_in_root": false
 }

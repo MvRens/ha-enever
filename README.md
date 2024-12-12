@@ -36,7 +36,9 @@ The electricity price is fetched from two feeds: today and tomorrow. The entity 
 
 The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in 15 minutes. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
 
-Electricity entities also provide the raw data as two attributes, "Today" and "Tomorrow". These contain a list where each entry has a key "datum" containing the date and time, and "prijs" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "Tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "Today" by then.
+Electricity entities also provide the raw data as attributes, "today" and "tomorrow". These contain a list where each entry has a key "datum" containing the date and time, and "prijs" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "Tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "Today" by then.
+
+In addition the average price is calculated and stored as attributes "today_average" and "tomorrow_average".
 
 ### Gas
 
@@ -53,11 +55,11 @@ Note: this may differ from the actual requests remaining, as all attempts are re
 
 ### HACS
 
-As I'm personally running Home Assistant in a Docker container, I am not really familiar with HACS. I have followed the guidelines to the best of my knowledge to get this repository ready for HACS, but did not test it. Feel free to open an issue or pull request if changes are required.
+Go to the HACS dashboard, click on the menu in the top right corner and select 'Custom repositories'. For the Repository field, enter `https://github.com/MvRens/ha-enever`. Select `Integration` as the Type and click 'Add'. A new entry should appear at the top of the dialog and you can now close it. Search for 'Enever' in the store to download and install it.
 
 ### Manual
 
-In the 'custom_components' folder of your Home Assistant installation, create a folder 'enever' and place the files from this repository in that folder. Restart Home Assistant.
+Copy the contents of the `custom_components/enever/` folder in this repository and place it under a `custom_components/enever/` folder in your Home Assistant installation's configuration path. The other files and folders in this repository (such as hacs.json or this README) are not required.
 
 ## Configuration
 ### Adding to Home Assistant
@@ -84,17 +86,10 @@ apex_config:
   grid:
     show: true
   legend:
-    show: false
+    show: true
   title:
-    text: Stroomprijs vandaag en morgen
+    text: Electricity price today and tomorrow
     align: center
-    floating: true
-  tooltip:
-    "y":
-      formatter: |
-        EVAL:function(val) {          
-          return val.toFixed(3) + " €/kWh";
-        }
 yaxis:
   - show: true
     max: ~0.7
@@ -105,21 +100,63 @@ yaxis:
 series:
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
+    name: Average tomorrow
+    float_precision: 3
+    stroke_width: 3
+    data_generator: |
+      if (!entity.attributes.tomorrow) return [];
+      const value = entity.attributes.tomorrow_average;
+
+      return entity.attributes.tomorrow.map((entry) => {
+        const offsetForToday = new Date(entry.datum);
+        offsetForToday.setDate(offsetForToday.getDate() - 1);
+        
+        return [offsetForToday.getTime(), value];
+      });
+    color: "#c0c0c0"
+  - entity: sensor.enever_stroomprijs_nextenergy
+    type: line
+    name: Average today
+    float_precision: 3
+    stroke_width: 3
+    data_generator: |
+      if (!entity.attributes.today) return [];
+      const value = entity.attributes.today_average;
+
+      return entity.attributes.today.map((entry) => {
+        const offsetForToday = new Date(entry.datum);
+        offsetForToday.setDate(offsetForToday.getDate() - 1);
+        
+        return [offsetForToday.getTime(), value];
+      });
+    color: "#a7e1fb"
+  - entity: sensor.enever_stroomprijs_nextenergy
+    type: line
+    name: Tomorrow
+    float_precision: 3
+    show:
+      extremas: true
+      legend_value: false
     data_generator: |
       if (!entity.attributes.tomorrow) return [];
       return entity.attributes.tomorrow.map((entry) => {
         const offsetForToday = new Date(entry.datum);
         offsetForToday.setDate(offsetForToday.getDate() - 1);
         
-        return [offsetForToday, parseFloat(entry.prijs)];
+        return [offsetForToday.getTime(), parseFloat(entry.prijs)];
       });
-    color: "#c0c0c0"
+    color: "#808080"
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
+    name: Today
+    float_precision: 3
+    show:
+      extremas: true
+      legend_value: false
     data_generator: |
       if (!entity.attributes.today) return [];
       return entity.attributes.today.map((entry) => {
-        return [new Date(entry.datum), parseFloat(entry.prijs)];        
+        return [new Date(entry.datum).getTime(), parseFloat(entry.prijs)];        
       });
     color: "#03a9f4"
 ```

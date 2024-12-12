@@ -28,7 +28,7 @@ from .coordinator import (
     EneverCoordinatorObserver,
     EneverUpdateCoordinator,
 )
-from .enever_api import Providers
+from .enever_api import EneverData, Providers
 from .entity import EneverEntity, EneverHourlyEntity
 
 
@@ -182,13 +182,16 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             else None
         )
 
+        data_today = self._get_provider_data(today)
+        data_tomorrow = self._get_provider_data(tomorrow)
+
         # Set the entity value to the price for the current hour for use in the Energy Dashboard
         self._attr_native_value = (
             next(
                 (
-                    data_item.prijs.get(self.provider)
-                    for data_item in today
-                    if data_item.datum.hour == now.hour
+                    data_item["prijs"]
+                    for data_item in data_today
+                    if data_item["datum"].hour == now.hour
                 ),
                 None,
             )
@@ -196,28 +199,40 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             else None
         )
 
+        # Calculate averages
+        self._attr_extra_state_attributes["today_average"] = (
+            self._calculate_average_prijs(data_today)
+        )
+        self._attr_extra_state_attributes["tomorrow_average"] = (
+            self._calculate_average_prijs(data_tomorrow)
+        )
+
         # Expose the full data for today and tomorrow as attributes (if yet known) for use in graphs
-        self._attr_extra_state_attributes["today"] = (
-            [
-                {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
-                for data_item in today
-            ]
-            if today is not None
-            else None
-        )
-        self._attr_extra_state_attributes["tomorrow"] = (
-            [
-                {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
-                for data_item in tomorrow
-            ]
-            if tomorrow is not None
-            else None
-        )
+        self._attr_extra_state_attributes["today"] = data_today
+        self._attr_extra_state_attributes["tomorrow"] = data_tomorrow
 
         self._attr_extra_state_attributes["today_lastrequest"] = data.today_lastrequest
         self._attr_extra_state_attributes["tomorrow_lastrequest"] = (
             data.tomorrow_lastrequest
         )
+
+    def _get_provider_data(
+        self, data: list[EneverData] | None
+    ) -> list[dict[str, datetime | float]] | None:
+        return (
+            [
+                {"datum": data_item.datum, "prijs": data_item.prijs.get(self.provider)}
+                for data_item in data
+            ]
+            if data is not None
+            else None
+        )
+
+    def _calculate_average_prijs(self, data: list[EneverData] | None) -> float | None:
+        if data is None or len(data) == 0:
+            return None
+
+        return sum(data_item["prijs"] for data_item in data) / len(data)
 
 
 class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
