@@ -81,8 +81,8 @@ async def async_setup_entry(
 class Unit:
     """Convenience constants for used units."""
 
-    EUR_KWH = f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
-    EUR_M3 = f"{CURRENCY_EURO}/{UnitOfVolume.CUBIC_METERS}"
+    EUR_KWH = f"EUR/{UnitOfEnergy.KILO_WATT_HOUR}"
+    EUR_M3 = f"EUR/{UnitOfVolume.CUBIC_METERS}"
 
 
 class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
@@ -118,11 +118,17 @@ class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
         data_datetime = data.today[0].datum
         data_validfrom = data_datetime - timedelta(hours=2)
         data_validto = data_validfrom + timedelta(hours=26)
+        provider_price = data.today[0].prijs.get(self.provider)
+
+        # There have been days where Enever mistakenly reports a negative gas price. Since this
+        # should never happen and wrecks the energy dashboard calculations, use yesterday's price.
+        # Not correct, but still better.
+        # TODO log warning
+        if provider_price is not None and provider_price < 0:
+            provider_price = self._attr_native_value
 
         self._attr_native_value = (
-            data.today[0].prijs.get(self.provider)
-            if data_validfrom <= now <= data_validto
-            else None
+            provider_price if data_validfrom <= now <= data_validto else None
         )
 
         self._attr_extra_state_attributes["lastrequest"] = data.today_lastrequest
@@ -329,8 +335,10 @@ class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
             else None
         )
         counter_month = (
-            date.fromisoformat(counter_month_attr)
-            if counter_month_attr is not None
+            counter_month_attr
+            if type(counter_month_attr) is date
+            else date.fromisoformat(counter_month_attr)
+            if type(counter_month_attr) is str
             else None
         )
 

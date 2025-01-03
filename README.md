@@ -2,14 +2,35 @@
 
 A non-official Home Assistant integration for [Enever.nl](https://enever.nl/) which provides sensors for the gas and electricity price feed data.
 
-> [!WARNING]
-> This integration is still young. This is my first Home Assistant integration, or Python project for that matter, so keep an eye out for those pesky bugs. I am running this in production in my own Home Assistance instance so I hope to spot issues early that way and appreciate any feedback.
+This integration supports all providers supported by Enever, which at the time of writing are:
 
-There are a few examples of retrieving this data with the built-in RESTful integration. That approach suffers from a few reliability issues however which this integration attempts to solve:
+1. Atoom Alliantie
+2. All in power
+3. ANWB Energie
+4. Budget Energie
+5. EasyEnergy
+6. Eneco
+7. Energie VanOns
+8. EnergyZero
+9. Frank Energie
+10. Groenestroom Lokaal
+11. Mijndomein Energie
+12. NextEnergy
+13. Tibber
+14. Vandebron
+15. Vrij op naam
+16. Wout Energie
+17. ZonderGas
+18. Zonneplan
+19. Beursprijs
 
-1. When enever.nl is busy or unreachable, the REST sensor will immediately change to Unavailable resulting in missing data in the Energy dashboard.
-2. It is tricky to get the current price right. Either the data for "today" needs to be updated at midnight exactly, or a complex template is required to get this data from the "tomorrow" feed in the meantime.
-3. The update time for the feeds is not guaranteed, so a check and retry later may be required if you want to get the new prices as soon as possible.
+All prices (except the Beursprijs) are including taxes and operating costs, ready to use.
+
+There are a few examples of retrieving this data with the built-in RESTful integration. That approach has a few issues however which this integration attempts to solve.
+
+1. Easy setup and no need for complex templates or automations to get up-to-date prices
+2. Automatic retries if enever.nl is busy or unreachable, price data remains available and as accurate as possible in the meantime
+
 
 ## Table of contents
   * [Provided sensors](#provided-sensors)
@@ -62,6 +83,10 @@ Go to the HACS dashboard, click on the menu in the top right corner and select '
 Copy the contents of the `custom_components/enever/` folder in this repository and place it under a `custom_components/enever/` folder in your Home Assistant installation's configuration path. The other files and folders in this repository (such as hacs.json or this README) are not required.
 
 ## Configuration
+### API token
+
+You will need to request an API token on [enever.nl](https://enever.nl/prijzenfeeds/), follow the instructions there. The integration tries to reduce the number of API calls so the free monthly token limit should not be exceeded. If you are able however, be sure to support them for providing this service!
+
 ### Adding to Home Assistant
 
 After installation the integration should be available under Settings - Devices & services. Click the Add integration button and search for "Enever".
