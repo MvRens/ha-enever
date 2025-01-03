@@ -81,8 +81,8 @@ async def async_setup_entry(
 class Unit:
     """Convenience constants for used units."""
 
-    EUR_KWH = f"{CURRENCY_EURO}/{UnitOfEnergy.KILO_WATT_HOUR}"
-    EUR_M3 = f"{CURRENCY_EURO}/{UnitOfVolume.CUBIC_METERS}"
+    EUR_KWH = f"EUR/{UnitOfEnergy.KILO_WATT_HOUR}"
+    EUR_M3 = f"EUR/{UnitOfVolume.CUBIC_METERS}"
 
 
 class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
