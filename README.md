@@ -31,19 +31,19 @@ There are a few examples of retrieving this data with the built-in RESTful integ
 1. Easy setup and no need for complex templates or automations to get up-to-date prices
 2. Automatic retries if enever.nl is busy or unreachable, price data remains available and as accurate as possible in the meantime
 
-
 ## Table of contents
-  * [Provided sensors](#provided-sensors)
-    + [Electricity](#electricity)
-    + [Gas](#gas)
-    + [API request counter](#api-request-counter)
-  * [Installation](#installation)
-    + [HACS](#hacs)
-    + [Manual](#manual)
-  * [Configuration](#configuration)
-    + [Adding to Home Assistant](#adding-to-home-assistant)
-    + [Creating a chart for upcoming prices](#creating-a-chart-for-upcoming-prices)
-  * [Developing](#developing)
+
+- [Provided sensors](#provided-sensors)
+  - [Electricity](#electricity)
+  - [Gas](#gas)
+  - [API request counter](#api-request-counter)
+- [Installation](#installation)
+  - [HACS](#hacs)
+  - [Manual](#manual)
+- [Configuration](#configuration)
+  - [Adding to Home Assistant](#adding-to-home-assistant)
+  - [Creating a chart for upcoming prices](#creating-a-chart-for-upcoming-prices)
+- [Developing](#developing)
 
 ## Provided sensors
 
@@ -57,9 +57,11 @@ The electricity price is fetched from two feeds: today and tomorrow. The entity 
 
 The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in 15 minutes. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
 
-Electricity entities also provide the raw data as attributes, "today" and "tomorrow". These contain a list where each entry has a key "datum" containing the date and time, and "prijs" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "Tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "Today" by then.
+Electricity entities also provide the entire set as attributes, "prices_today" and "prices_tomorrow". These contain a list where each entry has a key "time" containing the date and time, and "price" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "prices_tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "prices_today" by then.
 
 In addition the average price is calculated and stored as attributes "today_average" and "tomorrow_average".
+
+The format of the attributes is compatible with the [EV Smart Charging integration](https://github.com/jonasbkarlsson/ev_smart_charging).
 
 ### Gas
 
@@ -83,6 +85,7 @@ Go to the HACS dashboard, click on the menu in the top right corner and select '
 Copy the contents of the `custom_components/enever/` folder in this repository and place it under a `custom_components/enever/` folder in your Home Assistant installation's configuration path. The other files and folders in this repository (such as hacs.json or this README) are not required.
 
 ## Configuration
+
 ### API token
 
 You will need to request an API token on [enever.nl](https://enever.nl/prijzenfeeds/), follow the instructions there. The integration tries to reduce the number of API calls so the free monthly token limit should not be exceeded. If you are able however, be sure to support them for providing this service!
@@ -129,13 +132,13 @@ series:
     float_precision: 3
     stroke_width: 3
     data_generator: |
-      if (!entity.attributes.tomorrow) return [];
+      if (!entity.attributes.prices_tomorrow) return [];
       const value = entity.attributes.tomorrow_average;
 
-      return entity.attributes.tomorrow.map((entry) => {
-        const offsetForToday = new Date(entry.datum);
+      return entity.attributes.prices_tomorrow.map((entry) => {
+        const offsetForToday = new Date(entry.time);
         offsetForToday.setDate(offsetForToday.getDate() - 1);
-        
+
         return [offsetForToday.getTime(), value];
       });
     color: "#c0c0c0"
@@ -145,13 +148,13 @@ series:
     float_precision: 3
     stroke_width: 3
     data_generator: |
-      if (!entity.attributes.today) return [];
+      if (!entity.attributes.prices_today) return [];
       const value = entity.attributes.today_average;
 
-      return entity.attributes.today.map((entry) => {
-        const offsetForToday = new Date(entry.datum);
+      return entity.attributes.prices_today.map((entry) => {
+        const offsetForToday = new Date(entry.time);
         offsetForToday.setDate(offsetForToday.getDate() - 1);
-        
+
         return [offsetForToday.getTime(), value];
       });
     color: "#a7e1fb"
@@ -163,12 +166,12 @@ series:
       extremas: true
       legend_value: false
     data_generator: |
-      if (!entity.attributes.tomorrow) return [];
-      return entity.attributes.tomorrow.map((entry) => {
-        const offsetForToday = new Date(entry.datum);
+      if (!entity.attributes.prices_tomorrow) return [];
+      return entity.attributes.prices_tomorrow.map((entry) => {
+        const offsetForToday = new Date(entry.time);
         offsetForToday.setDate(offsetForToday.getDate() - 1);
-        
-        return [offsetForToday.getTime(), parseFloat(entry.prijs)];
+
+        return [offsetForToday.getTime(), parseFloat(entry.price)];
       });
     color: "#808080"
   - entity: sensor.enever_stroomprijs_nextenergy
@@ -179,9 +182,9 @@ series:
       extremas: true
       legend_value: false
     data_generator: |
-      if (!entity.attributes.today) return [];
-      return entity.attributes.today.map((entry) => {
-        return [new Date(entry.datum).getTime(), parseFloat(entry.prijs)];        
+      if (!entity.attributes.prices_today) return [];
+      return entity.attributes.prices_today.map((entry) => {
+        return [new Date(entry.time).getTime(), parseFloat(entry.price)];
       });
     color: "#03a9f4"
 ```
