@@ -51,18 +51,20 @@ async def async_setup_entry(
     enabledElectricityProviders = (
         Providers.electricity_keys() if allEnabled else electricityEnabled
     )
-    enabledGasProviders = Providers.electricity_keys() if allEnabled else gasEnabled
+    enabledGasProviders = Providers.gas_keys() if allEnabled else gasEnabled
 
     entities: list[EneverEntity] = (
         [
             EneverGasSensorEntity(
-                gasCoordinator, provider, provider in enabledElectricityProviders
+                gasCoordinator, provider, provider in enabledGasProviders
             )
             for provider in Providers.gas_keys()
         ]
         + [
             EneverElectricitySensorEntity(
-                electricityCoordinator, provider, provider in enabledGasProviders
+                electricityCoordinator,
+                provider,
+                provider in enabledElectricityProviders,
             )
             for provider in Providers.electricity_keys()
         ]
