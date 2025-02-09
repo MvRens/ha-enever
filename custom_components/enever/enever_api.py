@@ -116,9 +116,9 @@ class EneverData:
         return EneverData(
             datum=as_local(parse_datetime(item["datum"])),
             prijs={
-                key: float(item.get("prijs" + key, None))
+                key: float(value) if value is not None else None
                 for key in PROVIDERS
-                if "prijs" + key in item
+                if (value := item.get("prijs" + key)) is not None
             },
         )
 

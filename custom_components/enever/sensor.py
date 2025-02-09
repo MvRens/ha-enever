@@ -240,7 +240,11 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         if data is None or len(data) == 0:
             return None
 
-        return sum(data_item["price"] for data_item in data) / len(data)
+        valid_prices = [
+            data_item["price"] for data_item in data if data_item["price"] is not None
+        ]
+
+        return sum(valid_prices) / len(valid_prices) if valid_prices else 0
 
 
 class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
