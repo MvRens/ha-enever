@@ -179,12 +179,17 @@ class EneverAPI(ABC):
             match response.status_code:
                 case 200:
                     response_payload = response.json()
-                    if response_payload["code"] == "2":
-                        raise EneverInvalidToken
 
-                    if response_payload["code"] != "5":
+                    if "data" not in response_payload:
+                        raise EneverError("No data element in response")
+
+                    if not isinstance(response_payload["data"], list):
+                        if response_payload["code"] == "2":
+                            raise EneverInvalidToken
+
                         raise EneverError(
-                            "Unexpected code in response: " + response_payload["code"]
+                            "Invalid data element in response: "
+                            + response_payload["data"]
                         )
 
                     return EneverResponse.from_dict(response_payload["data"])
