@@ -50,7 +50,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]):
     await api.validate_token()
 
 
-class ConfigFlow(ConfigFlow, domain=DOMAIN):
+class EneverConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Enever."""
 
     VERSION = 1

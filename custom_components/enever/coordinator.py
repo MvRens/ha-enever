@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 import logging
+from typing import Any
 
-import homeassistant
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+import homeassistant.util.dt as dt_util
 from homeassistant.util.dt import as_local, get_default_time_zone
 
 from .const import DOMAIN
@@ -27,20 +29,23 @@ STORAGE_VERSION = 1
 MIN_TIME_BETWEEN_REQUESTS = timedelta(minutes=15)
 
 
-def _data_from_dict(data: dict[str, any] | None) -> list[EneverData] | None:
+def _data_from_dict(
+    data: list[Mapping[str, Any]] | None,
+) -> list[EneverData] | None:
     if data is None:
         return None
 
     return [
         EneverData(
-            datum=_str_to_datetime(value["datum"]),
+            datum=dt,
             prijs=value["prijs"],
         )
         for value in data
+        if (dt := _str_to_datetime(value["datum"])) is not None
     ]
 
 
-def _data_to_dict(data: list[EneverData] | None) -> dict[str, any] | None:
+def _data_to_dict(data: list[EneverData] | None) -> list[Mapping[str, Any]] | None:
     if data is None:
         return None
 
@@ -71,7 +76,7 @@ class EneverCoordinatorData:
     tomorrow_lastrequest: datetime | None
 
     @staticmethod
-    def from_dict(data: dict[str, any] | None) -> EneverCoordinatorData:
+    def from_dict(data: Mapping[str, Any] | None) -> EneverCoordinatorData:
         """Initialize from a dictionary for serialization."""
         if data is None:
             return EneverCoordinatorData(
@@ -88,7 +93,7 @@ class EneverCoordinatorData:
             tomorrow_lastrequest=_str_to_datetime(data["tomorrow_lastrequest"]),
         )
 
-    def to_dict(self) -> dict[str, any]:
+    def to_dict(self) -> Mapping[str, Any]:
         """Return the data as a dictionary for serialization."""
         return {
             "today": _data_to_dict(self.today),
@@ -114,7 +119,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         """Initialize the update coordinator."""
         self.api = api
 
-        self.store = Store[EneverCoordinatorData](
+        self.store = Store[Mapping[str, Any]](
             hass, STORAGE_VERSION, f"{DOMAIN}.{self._get_storage_key()}"
         )
 
@@ -143,7 +148,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             # but keep the refresh interval short to start fetching data soon.
             return EneverCoordinatorData.from_dict(await self.store.async_load())
 
-        now = homeassistant.util.dt.now()
+        now = dt_util.now()
         store = False
         new_data = EneverCoordinatorData(
             today=self.data.today,
@@ -237,7 +242,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         for observer in self._observers:
             observer.count_api_request()
 
-    def _get_update_interval(self, data: EneverCoordinatorData) -> timedelta:
+    def _get_update_interval(self, data: EneverCoordinatorData | None) -> timedelta:
         """Get new update interval."""
         if data is None:
             return timedelta(seconds=5)
@@ -254,7 +259,7 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
     async def _fetch_today(self) -> EneverResponse:
         return await self.api.gasprijs_vandaag()
 
-    async def _fetch_tomorrow(self) -> EneverResponse:
+    async def _fetch_tomorrow(self) -> EneverResponse | None:
         return None
 
     def _get_storage_key(self) -> str:

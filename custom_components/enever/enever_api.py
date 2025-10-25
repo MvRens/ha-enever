@@ -108,13 +108,17 @@ class EneverData:
     """Parsed data from an Enever endpoint."""
 
     datum: datetime
-    prijs: dict[str, float]
+    prijs: dict[str, float | None]
 
     @staticmethod
     def from_dict(item: dict):
         """Parse a data item in a JSON response from an API call."""
+        dt = parse_datetime(item["datum"])
+        if dt is None:
+            raise ValueError("datum could not be parsed as a datetime")
+
         return EneverData(
-            datum=as_local(parse_datetime(item["datum"])),
+            datum=as_local(dt),
             prijs={
                 key: float(value) if value is not None else None
                 for key in PROVIDERS
@@ -194,7 +198,7 @@ class EneverAPI(ABC):
 
                     return EneverResponse.from_dict(response_payload["data"])
                 case _:
-                    raise EneverError("HTTP status " + response.status_code)
+                    raise EneverError("HTTP status " + str(response.status_code))
         except TimeoutException as e:
             raise EneverCannotConnect from e
 

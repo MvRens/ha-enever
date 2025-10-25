@@ -206,3 +206,4 @@ There is probably a better way, and the downside is that you need to trick HA in
   ```json
   "documentation": "https://www.home-assistant.io/integrations/enever",
   ```
+- In the DevContainer terminal, run `python3 -m script.hassfest`
