@@ -130,7 +130,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             _LOGGER,
             name=DOMAIN,
             update_interval=self._get_update_interval(None),
-            always_update=False,
+            always_update=True,
         )
 
     def attach(self, observer: EneverCoordinatorObserver) -> None:

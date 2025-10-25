@@ -53,7 +53,7 @@ These entities are only enabled by default if specified during setup, so you can
 
 ### Electricity
 
-The electricity price is fetched from two feeds: today and tomorrow. The entity will update every hour based on the price for the current hour and day based on these two feeds.
+The electricity price is fetched from two feeds: today and tomorrow. The entity will update every 15 minutes based on the price for the current time based on these two feeds.
 
 The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in 15 minutes. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
 

@@ -202,19 +202,18 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         data_today = self._get_provider_data(today)
         data_tomorrow = self._get_provider_data(tomorrow)
 
-        # Set the entity value to the price for the current hour for use in the Energy Dashboard
-        self._attr_native_value = (
-            next(
-                (
-                    data_item["price"]
-                    for data_item in data_today
-                    if cast(datetime, data_item["time"]).hour == now.hour
-                ),
-                None,
+        # Set the entity value to the price for the current time slot for use in the Energy Dashboard
+        current_item = (
+            max(
+                (item for item in data_today if cast(datetime, item["time"]) <= now),
+                key=lambda x: cast(datetime, x["time"]),
+                default=None,
             )
-            if data_today is not None
+            if data_today
             else None
         )
+
+        self._attr_native_value = current_item["price"] if current_item else None
 
         # Calculate averages
         self._attr_extra_state_attributes["today_average"] = (

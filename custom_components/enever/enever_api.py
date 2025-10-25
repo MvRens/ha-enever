@@ -22,7 +22,7 @@ class EneverInvalidToken(EneverError):
     """Error to indicate the token is invalid."""
 
 
-BASE_URL = "https://enever.nl/api/"
+BASE_URL = "https://enever.nl/apiv2/"
 
 
 PROVIDERS: dict[str, str] = {
