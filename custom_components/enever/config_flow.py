@@ -11,8 +11,10 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_TOKEN
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.selector import selector
 
 from .const import (
+    CONF_API_VERSION,
     CONF_ENTITIES_DEFAULT_ENABLED,
     CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED,
     CONF_ENTITIES_PROVIDERS_GAS_ENABLED,
@@ -24,9 +26,22 @@ from .enever_api_factory import get_enever_api
 
 _LOGGER = logging.getLogger(__name__)
 
+
+SELECTOR_API_VERSION = selector(
+    {
+        "select": {
+            "options": [
+                {"value": "v1", "label": "Version 1 - Hourly"},
+                {"value": "v2", "label": "Version 2 - Quarter-hourly"},
+            ]
+        }
+    }
+)
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_API_TOKEN): cv.string,
+        vol.Required(CONF_API_VERSION): SELECTOR_API_VERSION,
         vol.Required(CONF_ENTITIES_DEFAULT_ENABLED): cv.boolean,
         vol.Optional(
             CONF_ENTITIES_PROVIDERS_ELECTRICITY_ENABLED, default=[]
@@ -38,6 +53,10 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
         ),
         vol.Required(CONF_ENTITY_APICOUNTER_ENABLED): cv.boolean,
     }
+)
+
+STEP_RECONFIGURE_SCHEMA = vol.Schema(
+    {vol.Required(CONF_API_VERSION): SELECTOR_API_VERSION}
 )
 
 
@@ -54,7 +73,7 @@ class EneverConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Enever."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -76,4 +95,25 @@ class EneverConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle the reconfigure step."""
+        reconfig_entry = self._get_reconfigure_entry()
+        if user_input is not None:
+            # self.async_set_unique_id(user_id)
+            # self._abort_if_unique_id_mismatch()
+
+            # TODO if API version changed, invalidate cache
+            return self.async_update_reload_and_abort(
+                reconfig_entry, data_updates=user_input
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(
+                STEP_RECONFIGURE_SCHEMA, user_input or reconfig_entry.data
+            ),
         )

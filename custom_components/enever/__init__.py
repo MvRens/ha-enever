@@ -8,7 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ENTITY_APICOUNTER_ENABLED, DOMAIN
+from .const import CONF_API_VERSION, CONF_ENTITY_APICOUNTER_ENABLED, DOMAIN
 from .coordinator import (
     ElectricityPricesCoordinator,
     EneverUpdateCoordinator,
@@ -55,16 +55,24 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.minor_version,
     )
 
-    if entry.version == 1:
-        new_data = {**entry.data}
+    changed = False
+    new_data = {**entry.data}
 
+    if entry.version == 1:
         # 1.1 -> 1.2: Added API counter config
         if entry.minor_version < 2:
             new_data = {**new_data, CONF_ENTITY_APICOUNTER_ENABLED: False}
+            changed = True
 
-            hass.config_entries.async_update_entry(
-                entry, data=new_data, minor_version=2, version=1
-            )
+        # 1.2 -> 1.3: Added API version
+        if entry.minor_version < 3:
+            new_data = {**new_data, CONF_API_VERSION: "v1"}
+            changed = True
+
+    if changed:
+        hass.config_entries.async_update_entry(
+            entry, data=new_data, minor_version=3, version=1
+        )
 
     _LOGGER.debug(
         "Migration to configuration version %s.%s successful",

@@ -78,8 +78,6 @@ async def async_setup_entry(
         ]
     )
 
-    # TODO add sensors for raw API data? -> maybe later, personally I have no usecase for it except debugging / insight
-
     async_add_entities(entities)
 
 
