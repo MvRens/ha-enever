@@ -22,9 +22,7 @@ class EneverInvalidToken(EneverError):
     """Error to indicate the token is invalid."""
 
 
-BASE_URL = "https://enever.nl/"
-API_V1 = "api/"
-API_V2 = "apiv2/"
+BASE_URL = "https://enever.nl/apiv3/"
 
 
 PROVIDERS: dict[str, str] = {
@@ -212,17 +210,15 @@ class EneverAPI(ABC):
 class ProductionEneverAPI(EneverAPI):
     """Wrapper class for the Enever prijzenfeeds."""
 
-    def __init__(self, client: AsyncClient, token: str, version: str) -> None:
+    def __init__(self, client: AsyncClient, token: str, resolution: int) -> None:
         """Initialize."""
         self.client = client
         self.token = token
-        self.apiprefix = API_V2 if version == "v2" else API_V1
+        self.resolution = resolution
 
     async def _fetch_raw(self, endpoint: str) -> Response:
-        params = {"token": self.token}
-        return await self.client.get(
-            BASE_URL + self.apiprefix + endpoint, params=params
-        )
+        params = {"token": self.token, "resolution": self.resolution}
+        return await self.client.get(BASE_URL + endpoint, params=params)
 
 
 class MockEneverAPI(EneverAPI):

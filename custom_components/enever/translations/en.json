@@ -12,24 +12,24 @@
         "step": {
             "reconfigure": {
                 "data": {
-                    "api_version": "API version"
+                    "resolution": "Resolution"
                 },
                 "data_description": {
-                    "api_version": "Version 1 uses hourly electricity prices, version 2 updates every 15 minutes. Select the version which matches your provider's pricing interval or you may get incorrect data!"
+                    "resolution": "Determines how often electricity prices can change. Select the resolution which matches your provider or you may get inaccurate data!"
                 }
             },
             "user": {
                 "data": {
                     "api_token": "API token",
-                    "api_version": "API version",
                     "entities_apicounter_enabled": "Enable the API request counter",
                     "entities_default_enabled": "Enable all sensors for all providers",
                     "entities_providers_electricity_enabled": "Enable electricity sensors for...",
-                    "entities_providers_gas_enabled": "Enable gas sensors for..."
+                    "entities_providers_gas_enabled": "Enable gas sensors for...",
+                    "resolution": "Resolution"
                 },
                 "data_description": {
-                    "api_version": "Version 1 uses hourly electricity prices, version 2 updates every 15 minutes. Select the version which matches your provider's pricing interval or you may get incorrect data!",
-                    "entities_default_enabled": "By default all sensors are disabled to reduce clutter. You can either enable all sensors by default, enable the sensors for specific providers by selecting them below or enable them manually later in the Entities list for the Enever device."
+                    "entities_default_enabled": "By default all sensors are disabled to reduce clutter. You can either enable all sensors by default, enable the sensors for specific providers by selecting them below or enable them manually later in the Entities list for the Enever device.",
+                    "resolution": "Determines how often electricity prices can change. Select the resolution which matches your provider or you may get inaccurate data!"
                 }
             }
         }

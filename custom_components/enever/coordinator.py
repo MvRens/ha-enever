@@ -9,13 +9,14 @@ from datetime import datetime, time, timedelta
 import logging
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import homeassistant.util.dt as dt_util
 from homeassistant.util.dt import as_local, get_default_time_zone
 
-from .const import DOMAIN
+from .const import CONF_RESOLUTION, DOMAIN
 from .enever_api import EneverAPI, EneverData, EneverResponse
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,12 +116,14 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
 
     _observers: list[EneverCoordinatorObserver]
 
-    def __init__(self, hass: HomeAssistant, api: EneverAPI) -> None:
+    def __init__(
+        self, hass: HomeAssistant, config_entry: ConfigEntry, api: EneverAPI
+    ) -> None:
         """Initialize the update coordinator."""
         self.api = api
 
         self.store = Store[Mapping[str, Any]](
-            hass, STORAGE_VERSION, f"{DOMAIN}.{self._get_storage_key()}"
+            hass, STORAGE_VERSION, f"{DOMAIN}.{self._get_storage_key(config_entry)}"
         )
 
         self._observers = []
@@ -128,6 +131,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name=DOMAIN,
             update_interval=self._get_update_interval(None),
             always_update=True,
@@ -206,7 +210,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         raise NotImplementedError
 
     @abstractmethod
-    def _get_storage_key(self) -> str:
+    def _get_storage_key(self, config_entry: ConfigEntry) -> str:
         """Return the storage key postfix."""
         raise NotImplementedError
 
@@ -262,7 +266,7 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
     async def _fetch_tomorrow(self) -> EneverResponse | None:
         return None
 
-    def _get_storage_key(self) -> str:
+    def _get_storage_key(self, config_entry: ConfigEntry) -> str:
         return "gas"
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
@@ -288,8 +292,8 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
     async def _fetch_tomorrow(self) -> EneverResponse:
         return await self.api.stroomprijs_morgen()
 
-    def _get_storage_key(self) -> str:
-        return "electricity"
+    def _get_storage_key(self, config_entry: ConfigEntry) -> str:
+        return f"electricity.{config_entry.data[CONF_RESOLUTION]}"
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
         if data.today is None or len(data.today) == 0:
