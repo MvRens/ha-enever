@@ -1,6 +1,8 @@
 """Enever sensors."""
 
+from collections.abc import Sequence
 from datetime import date, datetime, timedelta
+from typing import cast
 
 from homeassistant.components.sensor import (
     RestoreSensor,
@@ -9,10 +11,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CURRENCY_EURO, UnitOfEnergy, UnitOfVolume
+from homeassistant.const import UnitOfEnergy, UnitOfVolume
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_time_change
 import homeassistant.util.dt as dt_util
 
@@ -29,13 +32,13 @@ from .coordinator import (
     EneverUpdateCoordinator,
 )
 from .enever_api import EneverData, Providers
-from .entity import EneverEntity, EneverHourlyEntity
+from .entity import EneverHourlyEntity
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up Enever sensor based on a config entry."""
     coordinators: dict[str, EneverUpdateCoordinator] = hass.data[DOMAIN][entry.entry_id]
@@ -53,7 +56,7 @@ async def async_setup_entry(
     )
     enabledGasProviders = Providers.gas_keys() if allEnabled else gasEnabled
 
-    entities: list[EneverEntity] = (
+    entities: Sequence[Entity] = (
         [
             EneverGasSensorEntity(
                 gasCoordinator, provider, provider in enabledGasProviders
@@ -74,8 +77,6 @@ async def async_setup_entry(
             )
         ]
     )
-
-    # TODO add sensors for raw API data? -> maybe later, personally I have no usecase for it except debugging / insight
 
     async_add_entities(entities)
 
@@ -98,6 +99,9 @@ class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
     ) -> None:
         """Initialize a Enever sensor entity."""
         super().__init__(coordinator, provider, default_enabled)
+
+        if coordinator.config_entry is None:
+            raise ValueError("coordinator.config_entry must not be None")
 
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_gas_{provider}"
         self._attr_name = f"Gasprijs {Providers.get_display_name(provider)}"
@@ -150,6 +154,9 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         """Initialize a Enever sensor entity."""
         super().__init__(coordinator, provider, default_enabled)
 
+        if coordinator.config_entry is None:
+            raise ValueError("coordinator.config_entry must not be None")
+
         self._attr_unique_id = (
             f"{coordinator.config_entry.entry_id}_electricity_{provider}"
         )
@@ -193,19 +200,18 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         data_today = self._get_provider_data(today)
         data_tomorrow = self._get_provider_data(tomorrow)
 
-        # Set the entity value to the price for the current hour for use in the Energy Dashboard
-        self._attr_native_value = (
-            next(
-                (
-                    data_item["price"]
-                    for data_item in data_today
-                    if data_item["time"].hour == now.hour
-                ),
-                None,
+        # Set the entity value to the price for the current time slot for use in the Energy Dashboard
+        current_item = (
+            max(
+                (item for item in data_today if cast(datetime, item["time"]) <= now),
+                key=lambda x: cast(datetime, x["time"]),
+                default=None,
             )
-            if today is not None
+            if data_today
             else None
         )
+
+        self._attr_native_value = current_item["price"] if current_item else None
 
         # Calculate averages
         self._attr_extra_state_attributes["today_average"] = (
@@ -226,7 +232,7 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
 
     def _get_provider_data(
         self, data: list[EneverData] | None
-    ) -> list[dict[str, datetime | float]] | None:
+    ) -> list[dict[str, datetime | float | None]] | None:
         return (
             [
                 {"time": data_item.datum, "price": data_item.prijs.get(self.provider)}
@@ -236,12 +242,16 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             else None
         )
 
-    def _calculate_average_price(self, data: list[EneverData] | None) -> float | None:
+    def _calculate_average_price(
+        self, data: list[dict[str, datetime | float | None]] | None
+    ) -> float | None:
         if data is None or len(data) == 0:
             return None
 
         valid_prices = [
-            data_item["price"] for data_item in data if data_item["price"] is not None
+            cast(float, data_item["price"])
+            for data_item in data
+            if data_item["price"] is not None
         ]
 
         return sum(valid_prices) / len(valid_prices) if valid_prices else 0
@@ -323,7 +333,9 @@ class EneverRequestCountSensorEntity(RestoreSensor, EneverCoordinatorObserver):
         self._reset_month(dt_util.now())
 
         self._attr_native_value = (
-            self._attr_native_value + 1 if self._attr_native_value is not None else 1
+            cast(int, self._attr_native_value) + 1
+            if self._attr_native_value is not None
+            else 1
         )
 
         self.async_write_ha_state()

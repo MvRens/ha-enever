@@ -7,9 +7,21 @@
           "entities_default_enabled": "Enable all sensors for all providers",
           "entities_providers_electricity_enabled": "Enable electricity sensors for...",
           "entities_providers_gas_enabled": "Enable gas sensors for...",
-          "entities_apicounter_enabled": "Enable the API request counter"
+          "entities_apicounter_enabled": "Enable the API request counter",
+          "resolution": "Resolution"
         },
-        "description": "By default all sensors are disabled to reduce clutter. You can either enable all sensors by default, enable the sensors for specific providers by selecting them below or enable them manually later in the Entities list for the Enever device."
+        "data_description": {
+          "resolution": "Determines how often electricity prices can change. Select the resolution which matches your provider or you may get inaccurate data!",
+          "entities_default_enabled": "By default all sensors are disabled to reduce clutter. You can either enable all sensors by default, enable the sensors for specific providers by selecting them below or enable them manually later in the Entities list for the Enever device."
+        }
+      },
+      "reconfigure": {
+        "data": {
+          "resolution": "Resolution"
+        },
+        "data_description": {
+          "resolution": "Determines how often electricity prices can change. Select the resolution which matches your provider or you may get inaccurate data!"
+        }
       }
     },
     "error": {
@@ -18,7 +30,8 @@
       "unknown": "[%key:common::config_flow::error::unknown%]"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
     }
   }
 }

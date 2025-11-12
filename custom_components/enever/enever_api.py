@@ -22,7 +22,7 @@ class EneverInvalidToken(EneverError):
     """Error to indicate the token is invalid."""
 
 
-BASE_URL = "https://enever.nl/api/"
+BASE_URL = "https://enever.nl/apiv3/"
 
 
 PROVIDERS: dict[str, str] = {
@@ -108,13 +108,17 @@ class EneverData:
     """Parsed data from an Enever endpoint."""
 
     datum: datetime
-    prijs: dict[str, float]
+    prijs: dict[str, float | None]
 
     @staticmethod
     def from_dict(item: dict):
         """Parse a data item in a JSON response from an API call."""
+        dt = parse_datetime(item["datum"])
+        if dt is None:
+            raise ValueError("datum could not be parsed as a datetime")
+
         return EneverData(
-            datum=as_local(parse_datetime(item["datum"])),
+            datum=as_local(dt),
             prijs={
                 key: float(value) if value is not None else None
                 for key in PROVIDERS
@@ -179,17 +183,22 @@ class EneverAPI(ABC):
             match response.status_code:
                 case 200:
                     response_payload = response.json()
-                    if response_payload["code"] == "2":
-                        raise EneverInvalidToken
 
-                    if response_payload["code"] != "5":
+                    if "data" not in response_payload:
+                        raise EneverError("No data element in response")
+
+                    if not isinstance(response_payload["data"], list):
+                        if response_payload["code"] == "2":
+                            raise EneverInvalidToken
+
                         raise EneverError(
-                            "Unexpected code in response: " + response_payload["code"]
+                            "Invalid data element in response: "
+                            + response_payload["data"]
                         )
 
                     return EneverResponse.from_dict(response_payload["data"])
                 case _:
-                    raise EneverError("HTTP status " + response.status_code)
+                    raise EneverError("HTTP status " + str(response.status_code))
         except TimeoutException as e:
             raise EneverCannotConnect from e
 
@@ -201,13 +210,14 @@ class EneverAPI(ABC):
 class ProductionEneverAPI(EneverAPI):
     """Wrapper class for the Enever prijzenfeeds."""
 
-    def __init__(self, client: AsyncClient, token: str) -> None:
+    def __init__(self, client: AsyncClient, token: str, resolution: int) -> None:
         """Initialize."""
         self.client = client
         self.token = token
+        self.resolution = resolution
 
     async def _fetch_raw(self, endpoint: str) -> Response:
-        params = {"token": self.token}
+        params = {"token": self.token, "resolution": self.resolution}
         return await self.client.get(BASE_URL + endpoint, params=params)
 
 

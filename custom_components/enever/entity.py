@@ -5,11 +5,11 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-import homeassistant
 from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+import homeassistant.util.dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import EneverCoordinatorData, EneverUpdateCoordinator
@@ -37,9 +37,13 @@ class EneverEntity(CoordinatorEntity[EneverUpdateCoordinator], ABC):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this Enever device."""
+        config_entry = self.coordinator.config_entry
+        if config_entry is None:
+            raise ValueError("config_entry must not be None")
+
         return DeviceInfo(
-            identifiers={(DOMAIN, self.coordinator.config_entry.entry_id)},
-            name=self.coordinator.config_entry.title,
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=config_entry.title,
             manufacturer="Enever",
         )
 
@@ -53,7 +57,7 @@ class EneverEntity(CoordinatorEntity[EneverUpdateCoordinator], ABC):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        now = homeassistant.util.dt.now()
+        now = dt_util.now()
 
         self._attr_extra_state_attributes = {}
         self._handle_enever_coordinator_update(self.coordinator.data, now)
