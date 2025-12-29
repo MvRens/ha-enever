@@ -9,6 +9,8 @@ from datetime import datetime, time, timedelta
 import logging
 from typing import Any
 
+from httpx import ConnectError
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -17,7 +19,13 @@ import homeassistant.util.dt as dt_util
 from homeassistant.util.dt import as_local, get_default_time_zone
 
 from .const import CONF_RESOLUTION, DOMAIN
-from .enever_api import EneverAPI, EneverData, EneverResponse
+from .enever_api import (
+    EneverAPI,
+    EneverCannotConnect,
+    EneverData,
+    EneverInvalidToken,
+    EneverResponse,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,9 +33,19 @@ STORAGE_VERSION = 1
 
 # If fetching fails, or the data is still old at the start of the refresh cycle,
 # try again later. The lower the faster prices will update, but the more API
-# tokens will be used up so lower it with caution. Really only relevant for gas prices,
-# since electricity can use yesterday's 'tomorrow' prices in the meantime.
-MIN_TIME_BETWEEN_REQUESTS = timedelta(minutes=15)
+# tokens will be used up so lower it with caution.
+MIN_TIME_BETWEEN_REQUESTS_GAS = timedelta(minutes=15)
+
+# The retry interval is set higher for electricity since it can simply use
+# yesterday's "tomorrow" prices in the meantime.
+MIN_TIME_BETWEEN_REQUESTS_ELECTRICITY = timedelta(minutes=60)
+
+# The maximum number of attempts on a day. Does not differentiate between connectivity
+# issues and stale data or other issues, as we can not be sure if the request counted
+# towards the token limit. With 2 attempts for each coordinator that is a maximum of
+# 6 requests per day (electricity today, tomorrow and gas today). This keeps us within
+# the free tier limit of 250 requests per month.
+MAX_ATTEMPTS_COUNT = 2
 
 
 def _data_from_dict(
@@ -75,6 +93,7 @@ class EneverCoordinatorData:
     today_lastrequest: datetime | None
     tomorrow: list[EneverData] | None
     tomorrow_lastrequest: datetime | None
+    attempt: int
 
     @staticmethod
     def from_dict(data: Mapping[str, Any] | None) -> EneverCoordinatorData:
@@ -85,6 +104,7 @@ class EneverCoordinatorData:
                 today_lastrequest=None,
                 tomorrow=None,
                 tomorrow_lastrequest=None,
+                attempt=0,
             )
 
         return EneverCoordinatorData(
@@ -92,6 +112,7 @@ class EneverCoordinatorData:
             today_lastrequest=_str_to_datetime(data["today_lastrequest"]),
             tomorrow=_data_from_dict(data["tomorrow"]),
             tomorrow_lastrequest=_str_to_datetime(data["tomorrow_lastrequest"]),
+            attempt=data.get("attempt", 0),
         )
 
     def to_dict(self) -> Mapping[str, Any]:
@@ -101,6 +122,7 @@ class EneverCoordinatorData:
             "today_lastrequest": _datetime_to_str(self.today_lastrequest),
             "tomorrow": _data_to_dict(self.tomorrow),
             "tomorrow_lastrequest": _datetime_to_str(self.tomorrow_lastrequest),
+            "attempt": self.attempt,
         }
 
 
@@ -153,51 +175,57 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             return EneverCoordinatorData.from_dict(await self.store.async_load())
 
         now = dt_util.now()
-        store = False
         new_data = EneverCoordinatorData(
             today=self.data.today,
             today_lastrequest=self.data.today_lastrequest,
             tomorrow=self.data.tomorrow,
             tomorrow_lastrequest=self.data.tomorrow_lastrequest,
+            attempt=self.data.attempt,
         )
 
-        # TODO we should be able to use tomorrow's data for today the next day,
-        # assuming the prices do not change. This saves at least one request per day
-        # after the first day. Is that worth it?
+        counted_attempt = False
 
-        if self._allow_request_today(now, new_data) and self._should_update_today(
-            now, new_data
-        ):
+        def count_request():
+            nonlocal counted_attempt
+
+            if not counted_attempt:
+                new_data.attempt = new_data.attempt + 1
+                counted_attempt = True
+
             self._count_api_request()
 
-            response = await self._fetch_today()
-            if response is not None:
-                new_data.today = response.data
-                new_data.today_lastrequest = now
-                store = True
+        try:
+            if self._allow_request_today(now, new_data) and self._should_update_today(
+                now, new_data
+            ):
+                count_request()
 
-        if self._allow_request_tomorrow(now, new_data) and self._should_update_tomorrow(
-            now, new_data
-        ):
-            self._count_api_request()
+                response = await self._fetch_today()
+                if response is not None:
+                    new_data.today = response.data
+                    new_data.today_lastrequest = now
 
-            response = await self._fetch_tomorrow()
-            if response is not None:
-                new_data.tomorrow = response.data
-                new_data.tomorrow_lastrequest = now
-                store = True
+            if self._allow_request_tomorrow(
+                now, new_data
+            ) and self._should_update_tomorrow(now, new_data):
+                count_request()
 
-        if store:
+                response = await self._fetch_tomorrow()
+                if response is not None:
+                    new_data.tomorrow = response.data
+                    new_data.tomorrow_lastrequest = now
+
+            self.update_interval = self._get_update_interval(new_data)
+        except EneverInvalidToken:
+            _LOGGER.error("API token was denied")
+        except (TimeoutError, ConnectError, EneverCannotConnect):
+            _LOGGER.error("Connection timed out")
+        except Exception:
+            _LOGGER.exception("Error while fetching data")
+        finally:
             await self.store.async_save(new_data.to_dict())
 
-        self.update_interval = self._get_update_interval(new_data)
         return new_data
-
-        # TODO improve exception handling?
-        # except InvalidAuth:
-        #     raise UpdateFailed("Invalid authentication") from None
-        # except (TimeoutError, ConnectError) as err:
-        #     raise UpdateFailed("Cannot connect") from err
 
     @abstractmethod
     async def _fetch_today(self) -> EneverResponse:
@@ -214,20 +242,30 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         """Return the storage key postfix."""
         raise NotImplementedError
 
+    @abstractmethod
+    def _get_request_interval(self) -> timedelta:
+        raise NotImplementedError
+
     def _allow_request_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
+        if data.attempt >= MAX_ATTEMPTS_COUNT:
+            return False
+
         # Throttle
         return (
             data.today_lastrequest is None
-            or (now - data.today_lastrequest) >= MIN_TIME_BETWEEN_REQUESTS
+            or (now - data.today_lastrequest) >= self._get_request_interval()
         )
 
     def _allow_request_tomorrow(
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
+        if data.attempt >= MAX_ATTEMPTS_COUNT:
+            return False
+
         # Throttle
         return (
             data.tomorrow_lastrequest is None
-            or (now - data.tomorrow_lastrequest) >= MIN_TIME_BETWEEN_REQUESTS
+            or (now - data.tomorrow_lastrequest) >= self._get_request_interval()
         )
 
     @abstractmethod
@@ -269,6 +307,9 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
     def _get_storage_key(self, config_entry: ConfigEntry) -> str:
         return "gas"
 
+    def _get_request_interval(self) -> timedelta:
+        return MIN_TIME_BETWEEN_REQUESTS_GAS
+
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
         if data.today is None or len(data.today) == 0:
             return True
@@ -294,6 +335,9 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
 
     def _get_storage_key(self, config_entry: ConfigEntry) -> str:
         return f"electricity.{config_entry.data[CONF_RESOLUTION]}"
+
+    def _get_request_interval(self) -> timedelta:
+        return MIN_TIME_BETWEEN_REQUESTS_ELECTRICITY
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
         if data.today is None or len(data.today) == 0:
