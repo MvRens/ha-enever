@@ -1,8 +1,8 @@
-# Home Assistant Enever integration
+# Home Assistant Enever integratie
 
-A non-official Home Assistant integration for [Enever.nl](https://enever.nl/) which provides sensors for the gas and electricity price feed data.
+Een onofficiële Home Assistant-integratie voor [Enever.nl](https://enever.nl/) die sensoren biedt voor de feeds van gas- en elektriciteitsprijzen.
 
-This integration supports all providers supported by Enever, which at the time of writing are:
+Deze integratie ondersteunt alle providers die door Enever worden ondersteund. Op het moment van schrijven zijn dit:
 
 1. Atoom Alliantie
 2. All in power
@@ -24,81 +24,83 @@ This integration supports all providers supported by Enever, which at the time o
 18. Zonneplan
 19. Beursprijs
 
-All prices (except the Beursprijs) are including taxes and operating costs, ready to use.
+Alle prijzen (met uitzondering van de Beursprijs) zijn inclusief toeslag en belasting en direct te gebruiken.
 
-There are a few examples of retrieving this data with the built-in RESTful integration. That approach has a few issues however which this integration attempts to solve.
+Er zijn een paar voorbeelden van het opvragen van deze gegevens met de ingebouwde RESTful-integratie. Die aanpak heeft echter een aantal nadelen die deze integratie probeert op te lossen.
 
-1. Easy setup and no need for complex templates or automations to get up-to-date prices
-2. Automatic retries if enever.nl is busy or unreachable, price data remains available and as accurate as possible in the meantime
+1. Eenvoudige installatie en geen complexe sjablonen of automatiseringen nodig om actuele prijzen te verkrijgen.
+2. Automatisch opnieuw proberen als enever.nl bezet of onbereikbaar is; de prijsgegevens blijven in de tussentijd beschikbaar en zo nauwkeurig mogelijk.
 
-## Table of contents
+## Inhoudsopgave
 
-- [Provided sensors](#provided-sensors)
-  - [Electricity](#electricity)
+- [Sensoren](#sensoren)
+  - [Electriciteit](#electriciteit)
   - [Gas](#gas)
-  - [API request counter](#api-request-counter)
-- [Installation](#installation)
+  - [API teller](#api-teller)
+- [Installatie](#installatie)
   - [HACS](#hacs)
-  - [Manual](#manual)
-- [Configuration](#configuration)
-  - [Adding to Home Assistant](#adding-to-home-assistant)
-  - [Creating a chart for upcoming prices](#creating-a-chart-for-upcoming-prices)
-- [Developing](#developing)
+  - [Handmatig](#handmatig)
+- [Configurate](#configuratie)
+  - [Toevoegen aan Home Assistant](#toevoegen-aan-home-assistant)
+  - [Een grafiek maken voor aankomende prijzen](#een-grafiek-maken-voor-aankomende-prijzen)
+- [Debug logging](#debug-logging)
+- [Ontwikkelen](#Ontwikkelen)
 
-## Provided sensors
+## Sensoren
 
-For each supported provider one or two sensors are added for the current electricity price (&euro;/kWh) and/or gas price (&euro;/m&sup3;). These can be used directly as an "entity with current price" in the Energy Dashboard.
+Voor elke ondersteunde leverancier worden één of twee sensoren toegevoegd voor de actuele elektriciteitsprijs (€/kWh) en/of gasprijs (€/m³). Deze kunnen direct worden gebruikt als een "entiteit met huidige prijs" in het Energie dashboard.
 
-These entities are only enabled by default if specified during setup, so you can easily only enable the provider(s) you are interested in. See the Installation section for a screenshot.
+Deze entiteiten zijn standaard alleen ingeschakeld als ze tijdens de installatie zijn toegevoegd. Het is dus eenvoudig om alleen de provider(s) in te schakelen die relevant zijn. Zie het gedeelte Installatie voor een screenshot.
 
-### Electricity
+### Electriciteit
 
-The electricity price is fetched from two feeds: today and tomorrow. The entity will update every 15 or 60 minutes with the price for the current time based on these two feeds.
+De elektriciteitsprijs wordt opgehaald uit twee feeds: vandaag en morgen. De entiteit wordt elke 15 of 60 minuten bijgewerkt met de prijs voor het huidige tijdstip op basis van deze twee feeds.
 
-The feeds will only be fetched when required, and after the time the feed is supposed to be refreshed, to minimize API token use. This uses up at least two requests per day, but in case a feed is not yet updated it will try again in an hour. As the data for tomorrow should already be known at that time, unless there is an error for more than 24 hours the electricity price should always be available.
+De feeds worden alleen opgehaald wanneer nodig en na het tijdstip waarop de feed zou moeten worden vernieuwd, om het gebruik van API-tokens te minimaliseren. Dit kost minimaal twee verzoeken per dag, maar als een feed nog niet is bijgewerkt wordt het na een uur opnieuw geprobeerd. Aangezien de gegevens voor morgen op dat moment al bekend zouden moeten zijn, zou de elektriciteitsprijs, tenzij er een fout optreedt die langer dan 24 uur aanhoudt, altijd beschikbaar moeten zijn.
 
-Electricity entities also provide the entire set as attributes, "prices_today" and "prices_tomorrow". These contain a list where each entry has a key "time" containing the date and time, and "price" for the price at that time. These attributes will be set to None if the data is not valid for the current date. This means the "prices_tomorrow" attribute will only be available from around 15:00 - 16:00 to midnight, as it will shift to "prices_today" by then.
+Elektriciteits entiteiten bieden ook de volledige set aan als attributen, "prices_today" en "prices_tomorrow". Deze bevatten een lijst waarbij elk item een sleutel "time" heeft met de datum en tijd, en een "price" met de prijs op dat moment. Deze attributen worden ingesteld op None als de gegevens niet geldig zijn voor de huidige datum. Dit betekent dat het attribuut "prices_tomorrow" alleen beschikbaar is van ongeveer 15:00 - 16:00 uur tot middernacht, omdat het dan overgaat naar "prices_today".
 
-In addition the average price is calculated and stored as attributes "today_average" and "tomorrow_average".
+Daarnaast wordt de gemiddelde prijs berekend en opgeslagen als attributen "today_average" en "tomorrow_average".
 
-The format of the attributes is compatible with the [EV Smart Charging integration](https://github.com/jonasbkarlsson/ev_smart_charging).
+Het formaat van de attributen is compatibel met de [EV Smart Charging-integratie](https://github.com/jonasbkarlsson/ev_smart_charging).
 
 ### Gas
 
-The gas price is fetched every day at 6:00 when it should be refreshed. The new price is effective immediately.
+De gasprijs wordt elke dag om 6:00 uur opgehaald en vervolgens bijgewerkt. De nieuwe prijs is direct van kracht.
 
-If the price feed is not updated it will try again in 15 minutes. The entity will keep the value for the previous day for up to 2 hours, as having a slightly incorrect price is still better than no price for calculating total energy cost.
+Als de prijsfeed niet kan worden bijgewerkt, wordt er na 15 minuten opnieuw een poging gedaan. De entiteit bewaart de waarde van de vorige dag maximaal 2 uur, omdat een iets onjuiste prijs nog steeds beter is dan geen prijs voor het berekenen van de totale energiekosten.
 
-### API request counter
+### API teller
 
-This sensor keeps track of the amount of API requests performed this month by this integration (not including the one required for validating the token during setup). This is useful to see if the integration is behaving nicely, especially if you are not a supporter and have a limited amount of requests available. If this counter is significantly higher than expected, be sure to open an issue.
-Note: this may differ from the actual requests remaining, as all attempts are recorded, including where the API is unreachable.
+Deze sensor houdt het aantal API-aanvragen bij dat deze maand door deze integratie is uitgevoerd (exclusief de aanvraag die nodig is voor het valideren van het token tijdens de installatie). Dit is handig om te controleren of de integratie goed werkt, met name voor de gratis API tokens waarbij het aantal aanvragen beperkt is tot 250 per maand. Als deze teller aanzienlijk hoger is dan verwacht, open dan een issue.
 
-## Installation
+Let op: dit kan afwijken van het werkelijke aantal resterende aanvragen, aangezien alle pogingen worden geregistreerd, ook als de API niet bereikbaar is.
+
+## Installatie
 
 ### HACS
 
-Go to the HACS dashboard, click on the menu in the top right corner and select 'Custom repositories'. For the Repository field, enter `https://github.com/MvRens/ha-enever`. Select `Integration` as the Type and click 'Add'. A new entry should appear at the top of the dialog and you can now close it. Search for 'Enever' in the store to download and install it.
+Ga naar het HACS-dashboard, klik op het menu in de rechterbovenhoek en selecteer 'Aangepaste repositories'. Voer in het veld Repository `https://github.com/MvRens/ha-enever` in. Selecteer `Integratie` als Type en klik op 'Toevoegen'. Er zou een nieuwe optie bovenaan het dialoogvenster moeten verschijnen en u kunt het nu sluiten. Zoek naar 'Enever' in de store om het te downloaden en te installeren.
 
-### Manual
+### Handmatig
 
-Copy the contents of the `custom_components/enever/` folder in this repository and place it under a `custom_components/enever/` folder in your Home Assistant installation's configuration path. The other files and folders in this repository (such as hacs.json or this README) are not required.
+Kopieer de inhoud van de map `custom_components/enever/` uit de ha-enever repository en plaats deze in een map `custom_components/enever/` in het configuratiepad van uw Home Assistant-installatie. De andere bestanden en mappen in deze repository (zoals hacs.json of deze README) zijn niet nodig.
 
-## Configuration
+## Configuratie
 
 ### API token
 
-You will need to request an API token on [enever.nl](https://enever.nl/prijzenfeeds/), follow the instructions there. The integration tries to reduce the number of API calls so the free monthly token limit should not be exceeded. If you are able however, be sure to support them for providing this service!
+Voor deze integratie is een API-token nodig welke aan te vragen is op [enever.nl](https://enever.nl/prijzenfeeds/). Volg hiervoor de instructies. De integratie probeert het aantal API-aanroepen te beperken, zodat de maandelijkse limiet voor gratis tokens niet wordt overschreden. Als u de mogelijkheid hebt, steun Enever dan voor het aanbieden van deze service! Daarmee wordt tevens de limiet verhoogd naar 10.000 aanvragen per maand.
 
-### Adding to Home Assistant
+### Toevoegen aan Home Assistant
 
-After installation the integration should be available under Settings - Devices & services. Click the Add integration button and search for "Enever".
+Na de installatie zou de integratie beschikbaar moeten zijn onder Instellingen - Apparaten en services. Klik op de knop 'Integratie toevoegen' en zoek naar 'Enever'.
 
 ![Setup](./docs/config_flow.png)
 
-### Creating a chart for upcoming prices
+### Een grafiek maken voor aankomende prijzen
 
-Since the electriciy prices are known in advance you can use the attributes to create a chart. Here is an example using the [ApexCharts card](https://github.com/RomRider/apexcharts-card):
+Aangezien de elektriciteitsprijzen vantevoren bekend zijn, kunt u de attributen gebruiken om een ​​grafiek te maken. Hier is een voorbeeld met de [ApexCharts-kaart](https://github.com/RomRider/apexcharts-card):
 
 ![Chart](./docs/chart.png)
 
@@ -116,7 +118,7 @@ apex_config:
   legend:
     show: true
   title:
-    text: Electricity price today and tomorrow
+    text: Elektriciteitsprijs vandaag en morgen
     align: center
 yaxis:
   - show: true
@@ -128,7 +130,7 @@ yaxis:
 series:
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
-    name: Average tomorrow
+    name: Gemiddeld morgen
     float_precision: 3
     stroke_width: 3
     data_generator: |
@@ -144,7 +146,7 @@ series:
     color: "#c0c0c0"
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
-    name: Average today
+    name: Gemiddeld vandaag
     float_precision: 3
     stroke_width: 3
     data_generator: |
@@ -160,7 +162,7 @@ series:
     color: "#a7e1fb"
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
-    name: Tomorrow
+    name: Morgen
     float_precision: 3
     show:
       extremas: true
@@ -176,7 +178,7 @@ series:
     color: "#808080"
   - entity: sensor.enever_stroomprijs_nextenergy
     type: line
-    name: Today
+    name: Vandaag
     float_precision: 3
     show:
       extremas: true
@@ -191,7 +193,7 @@ series:
 
 ## Debug logging
 
-To enable debug logging, add the following configuration to ```configuration.yaml```:
+Om debug-logging in te schakelen, voeg de volgende configuratie toe aan `configuration.yaml`:
 
 ```yaml
 logger:
@@ -199,21 +201,24 @@ logger:
     homeassistant.components.enever: debug
 ```
 
-## Developing
+## Ontwikkelen
 
-Follow the instructions for [setting up a development environment](https://developers.home-assistant.io/docs/development_environment). I've chosen VS Code + DevContainers. To get better code checking I have not mounted the code as a custom_component, but instead as a native component by adding the following to the devcontainer.json (change the source path accordingly):
+Volg de instructies voor [het instellen van een ontwikkelomgeving](https://developers.home-assistant.io/docs/development_environment). Ik heb gekozen voor VS Code + DevContainers. Om de code beter te kunnen debuggen, heb ik de code niet als een custom_component gemount, maar als een native component door het volgende toe te voegen aan devcontainer.json (pas het bronpad waar nodig aan):
 
 ```json
 "mounts": [
-    "source=${localEnv:HOME}/Projects/ha-enever/custom_components/enever,target=${containerWorkspaceFolder}/homeassistant/components/enever,type=bind"
+
+"source=${localEnv:HOME}/Projects/ha-enever/custom_components/enever,target=${containerWorkspaceFolder}/homeassistant/components/enever,type=bind"
 ],
 ```
 
-There is probably a better way, and the downside is that you need to trick HA into accepting the component.
+Er is waarschijnlijk een betere manier, en het nadeel is dat je Home Assistant moet misleiden om de component te accepteren.
 
-- Modify `script/hassfest/quality_scale.py` and add `"enever"` to the INTEGRATIONS_WITHOUT_QUALITY_SCALE_FILE array.
-- Modify `manifest.json` to pass the schema validation. Remove the `"version"` key and add:
+- Wijzig `script/hassfest/quality_scale.py` en voeg `"enever"` toe aan de array INTEGRATIONS_WITHOUT_QUALITY_SCALE_FILE.
+- Wijzig `manifest.json` om de schemavalidatie te doorstaan. Verwijder de sleutel "version" en voeg het volgende toe:
+
   ```json
   "documentation": "https://www.home-assistant.io/integrations/enever",
   ```
-- In the DevContainer terminal, run `python3 -m script.hassfest`
+
+- Voer in de DevContainer terminal uit `python3 -m script.hassfest`
