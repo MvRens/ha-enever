@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import TypedDict
 
 import anyio
 from httpx import AsyncClient, Response, TimeoutException
@@ -25,28 +26,43 @@ class EneverInvalidToken(EneverError):
 BASE_URL = "https://enever.nl/apiv3/"
 
 
-PROVIDERS: dict[str, str] = {
-    "": "Beurprijs",
-    "AA": "Atoom Alliantie",
-    "AIP": "All in power",
-    "ANWB": "ANWB Energie",
-    "BE": "Budget Energie",
-    "EE": "EasyEnergy",
-    "EN": "Eneco",
-    "EVO": "Energie VanOns",
-    "EZ": "EnergyZero",
-    "FR": "Frank Energie",
-    "GSL": "Groenestroom Lokaal",
-    "MDE": "Mijndomein Energie",
-    "NE": "NextEnergy",
-    "TI": "Tibber",
-    "VDB": "Vandebron",
-    "VON": "Vrij op naam",
-    "WE": "Wout Energie",
-    "ZG": "ZonderGas",
-    "ZP": "Zonneplan",
-    "EGSI": "Beursprijs EGSI",
-    "EOD": "Beursprijs EOD",
+class ProviderInfo(TypedDict):
+    """Contains information about a provider."""
+
+    name: str
+    gas: bool
+    electricity: bool
+
+
+PROVIDERS: dict[str, ProviderInfo] = {
+    "": {"name": "Beursprijs", "electricity": True, "gas": False},
+    "EGSI": {"name": "Beursprijs EGSI", "electricity": False, "gas": True},
+    "EOD": {"name": "Beursprijs EOD", "electricity": False, "gas": True},
+    "ANWB": {"name": "ANWB Energie", "electricity": True, "gas": True},
+    "BE": {"name": "Budget Energie", "electricity": True, "gas": True},
+    "CB": {"name": "Coolblue Energie", "electricity": True, "gas": False},
+    "ED": {"name": "Energiedirect", "electricity": True, "gas": True},
+    "EE": {"name": "EasyEnergy", "electricity": True, "gas": True},
+    "EG": {"name": "Energiek", "electricity": True, "gas": True},
+    "EN": {"name": "Eneco", "electricity": True, "gas": True},
+    "ES": {"name": "Essent", "electricity": True, "gas": True},
+    "EVO": {"name": "Energie VanOns", "electricity": True, "gas": True},
+    "EZ": {"name": "EnergyZero", "electricity": True, "gas": True},
+    "FR": {"name": "Frank Energie", "electricity": True, "gas": True},
+    "GSL": {"name": "Groenestroom Lokaal", "electricity": True, "gas": True},
+    "HE": {"name": "Hegg Energy", "electricity": True, "gas": True},
+    "IN": {"name": "Innova Energie", "electricity": True, "gas": True},
+    "MDE": {"name": "Mijndomein Energie", "electricity": True, "gas": True},
+    "NE": {"name": "NextEnergy", "electricity": True, "gas": True},
+    "PE": {"name": "Pure Energie", "electricity": True, "gas": True},
+    "QU": {"name": "Quatt", "electricity": True, "gas": True},
+    "SS": {"name": "SamSam", "electricity": True, "gas": True},
+    "TI": {"name": "Tibber", "electricity": True, "gas": True},
+    "VDB": {"name": "Vandebron", "electricity": True, "gas": True},
+    "VF": {"name": "Vattenfall", "electricity": True, "gas": True},
+    "VON": {"name": "Vrij op naam", "electricity": True, "gas": True},
+    "WE": {"name": "Wout Energie", "electricity": True, "gas": True},
+    "ZP": {"name": "Zonneplan", "electricity": True, "gas": True},
 }
 
 
@@ -57,7 +73,7 @@ class Providers:
     def electricity() -> dict[str, str]:
         """Return a dictionary for all providers of electricity price data."""
         return {
-            pair[0]: pair[1]
+            pair[0]: pair[1]["name"]
             for pair in PROVIDERS.items()
             if Providers.supports_electricity(pair[0])
         }
@@ -71,7 +87,7 @@ class Providers:
     def gas() -> dict[str, str]:
         """Return a dictionary for all providers of gas price data."""
         return {
-            pair[0]: pair[1]
+            pair[0]: pair[1]["name"]
             for pair in PROVIDERS.items()
             if Providers.supports_gas(pair[0])
         }
@@ -87,7 +103,7 @@ class Providers:
         if provider not in PROVIDERS:
             return False
 
-        return provider not in ["EGSI", "EOD"]
+        return PROVIDERS[provider]["electricity"]
 
     @staticmethod
     def supports_gas(provider: str) -> bool:
@@ -95,12 +111,12 @@ class Providers:
         if provider not in PROVIDERS:
             return False
 
-        return provider not in ["", "TI"]
+        return PROVIDERS[provider]["gas"]
 
     @staticmethod
     def get_display_name(provider: str) -> str:
         """Return the display name for the provider, or the input value if not valid."""
-        return PROVIDERS.get(provider, provider)
+        return PROVIDERS[provider]["name"] if provider in PROVIDERS else provider
 
 
 @dataclass
