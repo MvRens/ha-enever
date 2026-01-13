@@ -4,25 +4,32 @@ Een onofficiële Home Assistant-integratie voor [Enever.nl](https://enever.nl/) 
 
 Deze integratie ondersteunt alle providers die door Enever worden ondersteund. Op het moment van schrijven zijn dit:
 
-1. Atoom Alliantie
-2. All in power
-3. ANWB Energie
-4. Budget Energie
+1. ANWB Energie
+2. Budget Energie
+3. Coolblue Energie
+4. Energiedirect
 5. EasyEnergy
-6. Eneco
-7. Energie VanOns
-8. EnergyZero
-9. Frank Energie
-10. Groenestroom Lokaal
-11. Mijndomein Energie
-12. NextEnergy
-13. Tibber
-14. Vandebron
-15. Vrij op naam
-16. Wout Energie
-17. ZonderGas
-18. Zonneplan
-19. Beursprijs
+6. Energiek
+7. Eneco
+8. Essent
+9. Energie VanOns
+10. EnergyZero
+11. Frank Energie
+12. Groenestroom Lokaal
+13. Hegg Energy
+14. Innova Energie
+15. Mijndomein Energie
+16. NextEnergy
+17. Pure Energie
+18. Quatt
+19. SamSam
+20. Tibber
+21. Vandebron
+22. Vattenfall
+23. Vrij op naam
+24. Wout Energie
+25. Zonneplan
+26. Beursprijs
 
 Alle prijzen (met uitzondering van de Beursprijs) zijn inclusief toeslag en belasting en direct te gebruiken.
 
