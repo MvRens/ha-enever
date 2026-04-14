@@ -216,6 +216,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
                 now, new_data
             ):
                 new_data.today_attempt = new_data.today_attempt + 1
+                new_data.today_lastrequest = now
                 self._count_api_request()
                 store = True
 
@@ -226,12 +227,12 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
                 response = await self._fetch_today()
                 if response is not None:
                     new_data.today = response.data
-                    new_data.today_lastrequest = now
 
             if self._allow_request_tomorrow(
                 now, new_data
             ) and self._should_update_tomorrow(now, new_data):
                 new_data.tomorrow_attempt = new_data.tomorrow_attempt + 1
+                new_data.tomorrow_lastrequest = now
                 self._count_api_request()
                 store = True
 
@@ -242,12 +243,11 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
                 response = await self._fetch_tomorrow()
                 if response is not None:
                     new_data.tomorrow = response.data
-                    new_data.tomorrow_lastrequest = now
 
             self.update_interval = self._get_update_interval(new_data)
         except EneverInvalidToken:
             self.logger.error("API token was denied")
-        except (TimeoutError, ConnectError, EneverCannotConnect):
+        except TimeoutError, ConnectError, EneverCannotConnect:
             self.logger.error("Connection timed out")
         except Exception:
             self.logger.exception("Error while fetching data")
