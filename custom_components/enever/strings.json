@@ -34,5 +34,35 @@
       "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
       "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
     }
+  },
+  "services": {
+    "set_request_limit": {
+      "name": "Set request limit",
+      "description": "Sets or increases the API request limit for this month. Note that the request limit will always reset to the default next month.",
+      "fields": {
+        "value": {
+          "name": "New limit",
+          "description": "If specified, sets the request limit for this month to the specified value."
+        },
+        "increase": {
+          "name": "Increase current limit",
+          "description": "If specified and no new fixed value is specified, the request limit for this month is increased by this value."
+        }
+      }
+    },
+    "reset": {
+      "name": "Resets internal data",
+      "description": "For troubleshooting purposes. Specify which data to reset. Use with care.",
+      "fields": {
+        "request_count": {
+          "name": "Request counter",
+          "description": "Set the API request counter for this month to 0."
+        },
+        "token_limit_reached": {
+          "name": "Token limit reached flag",
+          "description": "Reset the 'token limit reached' flag which is set when the Enever API reports the token limit has been reached. Useful for when you've upgraded your token limit by becoming a Supporter."
+        }
+      }
+    }
   }
 }

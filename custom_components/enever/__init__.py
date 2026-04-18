@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers.typing import ConfigType
+from homeassistant.util.hass_dict import HassKey
 
 from .config_entry import EneverRuntimeData
 from .const import (
     CONF_ENTITY_APICOUNTER_ENABLED,
     CONF_OBSOLETE_API_VERSION,
     CONF_RESOLUTION,
+    DOMAIN,
 )
 from .coordinator import (
     ElectricityPricesCoordinator,
@@ -26,23 +30,60 @@ PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 _LOGGER = logging.getLogger(__name__)
 
+_DATA_ENEVER: HassKey[HassEneverData] = HassKey(DOMAIN)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Enever from a config entry."""
 
-    api = get_enever_api(hass, entry.data)
+@dataclass
+class HassEneverData:
+    """Contains shared runtime data for the Enever integration."""
+
+    api_tracker: EneverAPITracker
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up is called when Home Assistant is loading our component."""
 
     # pylint: disable=hass-logger-capital # incorrect lint warning, it's not a log message but a suffix
     api_tracker = EneverAPITracker(hass, _LOGGER.getChild("api_tracker"))
     await api_tracker.load()
 
+    hass.data.setdefault(_DATA_ENEVER, HassEneverData(api_tracker=api_tracker))
+
+    async def handle_set_request_limit(call: ServiceCall) -> None:
+        """Handle the service action call."""
+        value = call.data.get("value")
+        increase = call.data.get("increase")
+
+        await api_tracker.set_limit(value, increase)
+
+    async def handle_reset(call: ServiceCall) -> None:
+        """Handle the service action call."""
+        request_count = call.data.get("request_count", False)
+        token_limit_reached = call.data.get("token_limit_reached", False)
+
+        await api_tracker.reset(request_count, token_limit_reached)
+
+    hass.services.async_register(DOMAIN, "set_request_limit", handle_set_request_limit)
+    hass.services.async_register(DOMAIN, "reset", handle_reset)
+
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up Enever from a config entry."""
+
+    api = get_enever_api(hass, entry.data)
+    if (hass_data := hass.data.get(_DATA_ENEVER)) is None:
+        _LOGGER.error("Missing runtime data set by async_setup")
+        return False
+
     entry.runtime_data = EneverRuntimeData(
-        api_tracker=api_tracker,
+        api_tracker=hass_data.api_tracker,
         electricity_coordinator=await _async_init_coordinator(
-            ElectricityPricesCoordinator(hass, entry, api, api_tracker)
+            ElectricityPricesCoordinator(hass, entry, api, hass_data.api_tracker)
         ),
         gas_coordinator=await _async_init_coordinator(
-            GasPricesCoordinator(hass, entry, api, api_tracker)
+            GasPricesCoordinator(hass, entry, api, hass_data.api_tracker)
         ),
     )
 

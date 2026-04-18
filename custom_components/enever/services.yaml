@@ -1,0 +1,30 @@
+set_request_limit:
+  fields:
+    value:
+      required: false
+      example: 500
+      selector:
+        number:
+          min: 1
+    increase:
+      required: false
+      example: 200
+      default: 100
+      selector:
+        number:
+          min: 1
+
+reset:
+  fields:
+    request_count:
+      required: false
+      example: true
+      default: false
+      selector:
+        boolean:
+    token_limit_reached:
+      required: false
+      example: true
+      default: false
+      selector:
+        boolean:

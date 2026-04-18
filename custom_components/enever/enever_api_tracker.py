@@ -126,7 +126,7 @@ class EneverAPITracker:
 
         if self._data.request_count == self._data.request_limit:
             self._logger.warning(
-                "The internal request limit of %d has been reached, API requests will be blocked until next month. If this is due to testing and/or you are sure your Enever API token still has requests available, call the <TODO> service to increase the internal limit for this month.",
+                "The internal request limit of %d has been reached, API requests will be blocked until next month. If this is due to testing and/or you are sure your Enever API token still has requests available, call the enever.set_request_limit service to increase the internal limit for this month.",
                 self._data.request_limit,
             )
 
@@ -141,9 +141,38 @@ class EneverAPITracker:
             return
 
         self._logger.warning(
-            "Enever responded that the token limit has been reached, API requests will be blocked until next month. Call the <TODO> service to unblock calls earlier, for example after becoming a Supporter of Enever which increases token limits."
+            "Enever responded that the token limit has been reached, API requests will be blocked until next month. Call the enever.reset service to unblock calls earlier, for example after becoming a Supporter of Enever which increases token limits."
         )
         self._data.token_limit_reached = True
+        await self._save_store()
+
+    async def set_limit(self, value: int | None, increase: int | None) -> None:
+        """Backend method for enever.set_request_limit action."""
+        if self._data is None:
+            return
+
+        if value is not None:
+            self._data.request_limit = value
+            await self._save_store()
+
+        elif increase is not None:
+            self._data.request_limit = self._data.request_limit + increase
+            await self._save_store()
+
+    async def reset(self, request_count: bool, token_limit_reached: bool) -> None:
+        """Backend method for enever.reset action."""
+        if self._data is None:
+            return
+
+        if not request_count and not token_limit_reached:
+            return
+
+        if request_count:
+            self._data.request_count = 0
+
+        if token_limit_reached:
+            self._data.token_limit_reached = False
+
         await self._save_store()
 
     async def _save_store(self) -> None:
