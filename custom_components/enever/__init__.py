@@ -8,11 +8,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
+from .config_entry import EneverRuntimeData
 from .const import (
     CONF_ENTITY_APICOUNTER_ENABLED,
     CONF_OBSOLETE_API_VERSION,
     CONF_RESOLUTION,
-    DOMAIN,
 )
 from .coordinator import (
     ElectricityPricesCoordinator,
@@ -20,6 +20,7 @@ from .coordinator import (
     GasPricesCoordinator,
 )
 from .enever_api_factory import get_enever_api
+from .enever_api_tracker import EneverAPITracker
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
@@ -31,14 +32,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     api = get_enever_api(hass, entry.data)
 
-    coordinators = {
-        "gas": await _async_init_coordinator(GasPricesCoordinator(hass, entry, api)),
-        "electricity": await _async_init_coordinator(
-            ElectricityPricesCoordinator(hass, entry, api)
-        ),
-    }
+    # pylint: disable=hass-logger-capital # incorrect lint warning, it's not a log message but a suffix
+    api_tracker = EneverAPITracker(hass, _LOGGER.getChild("api_tracker"))
+    await api_tracker.load()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinators
+    entry.runtime_data = EneverRuntimeData(
+        api_tracker=api_tracker,
+        electricity_coordinator=await _async_init_coordinator(
+            ElectricityPricesCoordinator(hass, entry, api, api_tracker)
+        ),
+        gas_coordinator=await _async_init_coordinator(
+            GasPricesCoordinator(hass, entry, api, api_tracker)
+        ),
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
@@ -46,10 +52,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        hass.data[DOMAIN].pop(entry.entry_id)
-
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

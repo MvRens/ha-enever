@@ -106,7 +106,6 @@ class EneverConfigFlow(ConfigFlow, domain=DOMAIN):
             # self.async_set_unique_id(user_id)
             # self._abort_if_unique_id_mismatch()
 
-            # TODO if resolution changed, invalidate cache
             return self.async_update_reload_and_abort(
                 reconfig_entry, data_updates=user_input
             )
