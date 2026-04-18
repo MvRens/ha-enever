@@ -9,8 +9,6 @@ from datetime import datetime, time, timedelta
 import logging
 from typing import Any
 
-from httpx import ConnectError
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -21,10 +19,10 @@ from homeassistant.util.dt import as_local, get_default_time_zone
 from .const import CONF_RESOLUTION, DOMAIN
 from .enever_api import (
     EneverAPI,
-    EneverCannotConnect,
     EneverData,
     EneverInvalidToken,
     EneverResponse,
+    EneverTokenLimitReached,
 )
 from .enever_api_tracker import EneverAPITracker
 
@@ -232,11 +230,11 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
 
             self.update_interval = self._get_update_interval(new_data)
         except EneverInvalidToken:
+            self.last_update_success = False
             self.logger.error("API token was denied")
-        except TimeoutError, ConnectError, EneverCannotConnect:
-            self.logger.error("Connection timed out")
-        except Exception:
-            self.logger.exception("Error while fetching data")
+        except EneverTokenLimitReached:
+            self.last_update_success = False
+            await self.api_tracker.token_limit_reached()
         finally:
             if store:
                 await self.store.async_save(new_data.to_dict())

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TypedDict
 
 import anyio
-from httpx import AsyncClient, Response, TimeoutException
+from httpx import AsyncClient, Response
 
 from homeassistant.util.dt import as_local, parse_datetime
 
@@ -15,8 +15,8 @@ class EneverError(Exception):
     """Error calling the Enever API."""
 
 
-class EneverCannotConnect(EneverError):
-    """Error to indicate we cannot connect."""
+class EneverTokenLimitReached(EneverError):
+    """Error to indicate the token has reached it's monthly limit."""
 
 
 class EneverInvalidToken(EneverError):
@@ -167,18 +167,15 @@ class EneverAPI(ABC):
 
         Note: counts towards request limit!
         """
-        try:
-            response = await self._fetch_raw(self.ENDPOINT_GASPRIJS_VANDAAG)
+        response = await self._fetch_raw(self.ENDPOINT_GASPRIJS_VANDAAG)
 
-            match response.status_code:
-                case 200:
-                    response_payload = response.json()
-                    if response_payload["code"] == "2":
-                        raise EneverInvalidToken
-                case _:
-                    raise EneverError(response.status_code)
-        except TimeoutException as e:
-            raise EneverCannotConnect from e
+        match response.status_code:
+            case 200:
+                response_payload = response.json()
+                if response_payload["code"] == "2":
+                    raise EneverInvalidToken
+            case _:
+                raise EneverError(response.status_code)
 
     async def stroomprijs_vandaag(self) -> EneverResponse:
         """Return the electricity prices for today."""
@@ -193,30 +190,29 @@ class EneverAPI(ABC):
         return await self._fetch_parsed(self.ENDPOINT_GASPRIJS_VANDAAG)
 
     async def _fetch_parsed(self, endpoint: str):
-        try:
-            response = await self._fetch_raw(endpoint)
+        response = await self._fetch_raw(endpoint)
 
-            match response.status_code:
-                case 200:
-                    response_payload = response.json()
+        match response.status_code:
+            case 200:
+                response_payload = response.json()
 
-                    if "data" not in response_payload:
-                        raise EneverError("No data element in response")
+                if "data" not in response_payload:
+                    raise EneverError("No data element in response")
 
-                    if not isinstance(response_payload["data"], list):
-                        if response_payload["code"] == "2":
-                            raise EneverInvalidToken
+                if not isinstance(response_payload["data"], list):
+                    if response_payload["code"] == "2":
+                        raise EneverInvalidToken
 
-                        raise EneverError(
-                            "Invalid data element in response: "
-                            + response_payload["data"]
-                        )
+                    if response_payload["code"] == "6":
+                        raise EneverTokenLimitReached
 
-                    return EneverResponse.from_dict(response_payload["data"])
-                case _:
-                    raise EneverError("HTTP status " + str(response.status_code))
-        except TimeoutException as e:
-            raise EneverCannotConnect from e
+                    raise EneverError(
+                        "Invalid data element in response: " + response_payload["data"]
+                    )
+
+                return EneverResponse.from_dict(response_payload["data"])
+            case _:
+                raise EneverError("HTTP status " + str(response.status_code))
 
     @abstractmethod
     async def _fetch_raw(self, endpoint: str) -> Response:

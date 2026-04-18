@@ -7,6 +7,7 @@
         "error": {
             "cannot_connect": "Failed to connect",
             "invalid_auth": "Invalid authentication",
+            "token_limit_reached": "The monthly token limit has been reached",
             "unknown": "Unexpected error"
         },
         "step": {

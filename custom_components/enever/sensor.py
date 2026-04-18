@@ -126,7 +126,6 @@ class EneverGasSensorEntity(EneverHourlyEntity, SensorEntity):
         # There have been days where Enever mistakenly reports a negative gas price. Since this
         # should never happen and wrecks the energy dashboard calculations, use yesterday's price.
         # Not correct, but still better.
-        # TODO log warning
         if provider_price is not None and provider_price < 0:
             provider_price = self._attr_native_value
 

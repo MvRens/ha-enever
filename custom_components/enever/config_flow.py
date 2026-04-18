@@ -21,7 +21,7 @@ from .const import (
     CONF_RESOLUTION,
     DOMAIN,
 )
-from .enever_api import EneverCannotConnect, EneverInvalidToken, Providers
+from .enever_api import EneverInvalidToken, EneverTokenLimitReached, Providers
 from .enever_api_factory import get_enever_api
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,8 +83,8 @@ class EneverConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             try:
                 await validate_input(self.hass, user_input)
-            except EneverCannotConnect:
-                errors["base"] = "cannot_connect"
+            except EneverTokenLimitReached:
+                errors["base"] = "token_limit_reached"
             except EneverInvalidToken:
                 errors["base"] = "invalid_auth"
             except Exception:
