@@ -9,8 +9,6 @@ from datetime import datetime, time, timedelta
 import logging
 from typing import Any
 
-from httpx import ConnectError
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -21,11 +19,12 @@ from homeassistant.util.dt import as_local, get_default_time_zone
 from .const import CONF_RESOLUTION, DOMAIN
 from .enever_api import (
     EneverAPI,
-    EneverCannotConnect,
     EneverData,
     EneverInvalidToken,
     EneverResponse,
+    EneverTokenLimitReached,
 )
+from .enever_api_tracker import EneverAPITracker
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -130,17 +129,9 @@ class EneverCoordinatorData:
         }
 
 
-class EneverCoordinatorObserver:
-    """Implemented by observers."""
-
-    def count_api_request(self) -> None:
-        """Call before an API request is made."""
-
-
 class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC):
     """Update coordinator for Enever feeds."""
 
-    _observers: list[EneverCoordinatorObserver]
     logger: logging.Logger
 
     def __init__(
@@ -148,16 +139,17 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         hass: HomeAssistant,
         config_entry: ConfigEntry,
         api: EneverAPI,
+        api_tracker: EneverAPITracker,
         logger: logging.Logger,
     ) -> None:
         """Initialize the update coordinator."""
         self.api = api
+        self.api_tracker = api_tracker
 
         self.store = Store[Mapping[str, Any]](
             hass, STORAGE_VERSION, f"{DOMAIN}.{self._get_storage_key(config_entry)}"
         )
 
-        self._observers = []
         self.logger = logger
 
         super().__init__(
@@ -168,14 +160,6 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             update_interval=self._get_update_interval(None),
             always_update=True,
         )
-
-    def attach(self, observer: EneverCoordinatorObserver) -> None:
-        """Attach an observer."""
-        self._observers.append(observer)
-
-    def detach(self, observer: EneverCoordinatorObserver) -> None:
-        """Detach a previously attached observer."""
-        self._observers.remove(observer)
 
     async def _async_update_data(self) -> EneverCoordinatorData:
         """Update the data."""
@@ -212,12 +196,12 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             store = True
 
         try:
-            if self._allow_request_today(now, new_data) and self._should_update_today(
+            if await self._allow_request_today(
                 now, new_data
-            ):
+            ) and self._should_update_today(now, new_data):
                 new_data.today_attempt = new_data.today_attempt + 1
                 new_data.today_lastrequest = now
-                self._count_api_request()
+                await self.api_tracker.count_request()
                 store = True
 
                 self.logger.info(
@@ -228,12 +212,12 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
                 if response is not None:
                     new_data.today = response.data
 
-            if self._allow_request_tomorrow(
+            if await self._allow_request_tomorrow(
                 now, new_data
             ) and self._should_update_tomorrow(now, new_data):
                 new_data.tomorrow_attempt = new_data.tomorrow_attempt + 1
                 new_data.tomorrow_lastrequest = now
-                self._count_api_request()
+                await self.api_tracker.count_request()
                 store = True
 
                 self.logger.info(
@@ -246,11 +230,11 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
 
             self.update_interval = self._get_update_interval(new_data)
         except EneverInvalidToken:
+            self.last_update_success = False
             self.logger.error("API token was denied")
-        except TimeoutError, ConnectError, EneverCannotConnect:
-            self.logger.error("Connection timed out")
-        except Exception:
-            self.logger.exception("Error while fetching data")
+        except EneverTokenLimitReached:
+            self.last_update_success = False
+            await self.api_tracker.token_limit_reached()
         finally:
             if store:
                 await self.store.async_save(new_data.to_dict())
@@ -276,23 +260,30 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
     def _get_request_interval(self) -> timedelta:
         raise NotImplementedError
 
-    def _allow_request_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
-        return self._allow_request(
+    async def _allow_request_today(
+        self, now: datetime, data: EneverCoordinatorData
+    ) -> bool:
+        return await self._allow_request(
             now, data.today_lastrequest, data.today_attempt, "today"
         )
 
-    def _allow_request_tomorrow(
+    async def _allow_request_tomorrow(
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
-        return self._allow_request(
+        return await self._allow_request(
             now, data.tomorrow_lastrequest, data.tomorrow_attempt, "tomorrow"
         )
 
-    def _allow_request(
+    async def _allow_request(
         self, now: datetime, lastrequest: datetime | None, attempt: int, feed: str
     ) -> bool:
         if lastrequest is None:
             return True
+
+        # Global API request tracker
+        if not await self.api_tracker.allow_request():
+            self.logger.debug("API request denied by tracker, skipping")
+            return False
 
         # Throttle
         if (now - lastrequest) < self._get_request_interval():
@@ -322,10 +313,6 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         """Determine if the data for tomorrow needs updating."""
         raise NotImplementedError
 
-    def _count_api_request(self):
-        for observer in self._observers:
-            observer.count_api_request()
-
     def _get_update_interval(self, data: EneverCoordinatorData | None) -> timedelta:
         """Get new update interval."""
         if data is None:
@@ -338,11 +325,15 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
     """Gas prices update coordinator."""
 
     def __init__(
-        self, hass: HomeAssistant, config_entry: ConfigEntry, api: EneverAPI
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        api: EneverAPI,
+        api_tracker: EneverAPITracker,
     ) -> None:
         """Initialize the update coordinator."""
         # pylint: disable=hass-logger-capital # incorrect lint warning, it's not a log message but a suffix
-        super().__init__(hass, config_entry, api, _LOGGER.getChild("gas"))
+        super().__init__(hass, config_entry, api, api_tracker, _LOGGER.getChild("gas"))
 
     async def _fetch_today(self) -> EneverResponse:
         return await self.api.gasprijs_vandaag()
@@ -358,7 +349,15 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
         if data.today is None or len(data.today) == 0:
-            return True
+            # If this is the first time data is fetched, wait until it should be available
+            # to prevent simply running out of attempts each day
+            if now.hour >= 6:
+                return True
+
+            self.logger.debug(
+                "Waiting until 06:00 before fetching today's data, skipping"
+            )
+            return False
 
         # Try to update as soon as the prices expire, new ones should be available right away or within the hour
         data_validto = data.today[0].datum + timedelta(days=1)
@@ -381,11 +380,17 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
     """Electricity prices update coordinator."""
 
     def __init__(
-        self, hass: HomeAssistant, config_entry: ConfigEntry, api: EneverAPI
+        self,
+        hass: HomeAssistant,
+        config_entry: ConfigEntry,
+        api: EneverAPI,
+        api_tracker: EneverAPITracker,
     ) -> None:
         """Initialize the update coordinator."""
         # pylint: disable=hass-logger-capital # incorrect lint warning, it's not a log message but a suffix
-        super().__init__(hass, config_entry, api, _LOGGER.getChild("electricity"))
+        super().__init__(
+            hass, config_entry, api, api_tracker, _LOGGER.getChild("electricity")
+        )
 
     async def _fetch_today(self) -> EneverResponse:
         return await self.api.stroomprijs_vandaag()
@@ -416,6 +421,8 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
         if data.tomorrow is None or len(data.tomorrow) == 0:
+            # If this is the first time data is fetched, wait until it should be available
+            # to prevent simply running out of attempts each day
             if now.hour >= 15:
                 return True
 
