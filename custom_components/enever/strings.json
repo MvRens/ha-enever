@@ -63,6 +63,10 @@
           "description": "Reset the 'token limit reached' flag which is set when the Enever API reports the token limit has been reached. Useful for when you've upgraded your token limit by becoming a Supporter."
         }
       }
+    },
+    "force_refresh": {
+      "name": "Force refresh",
+      "description": "Forces the data to be refreshed, ignoring the interval and limiter. Specify an electricity and/or gas entity to refresh the corresponding feed(s)."
     }
   }
 }

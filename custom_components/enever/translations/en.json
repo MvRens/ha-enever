@@ -36,6 +36,10 @@
         }
     },
     "services": {
+        "force_refresh": {
+            "description": "Forces the data to be refreshed, ignoring the interval and limiter. Specify an electricity and/or gas entity to refresh the corresponding feed(s).",
+            "name": "Force refresh"
+        },
         "reset": {
             "description": "For troubleshooting purposes. Specify which data to reset. Use with care.",
             "fields": {

@@ -4,10 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+from typing import Any, cast
+
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util.hass_dict import HassKey
 
@@ -32,12 +36,53 @@ _LOGGER = logging.getLogger(__name__)
 
 _DATA_ENEVER: HassKey[HassEneverData] = HassKey(DOMAIN)
 
+FORCE_REFRESH_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id"): cv.entity_ids,
+    }
+)
+
 
 @dataclass
 class HassEneverData:
     """Contains shared runtime data for the Enever integration."""
 
     api_tracker: EneverAPITracker
+
+
+def get_enever_coordinators(
+    hass: HomeAssistant, entity_ids: Any | None
+) -> list[EneverUpdateCoordinator]:
+    """Returns a list of coordinators for the specified entity IDs, or all active coordinators."""
+    if entity_ids is None:
+        return [
+            coordinator
+            for entry in hass.config_entries.async_loaded_entries(DOMAIN)
+            for coordinator in [
+                cast(EneverRuntimeData, entry.runtime_data).electricity_coordinator,
+                cast(EneverRuntimeData, entry.runtime_data).gas_coordinator,
+            ]
+        ]
+
+    entity_registry = er.async_get(hass)
+
+    registry_entries = {
+        entry
+        for entity_id in entity_ids
+        if (entry := entity_registry.async_get(entity_id)) and entry.domain == DOMAIN
+    }
+
+    return [
+        cast(EneverRuntimeData, entry.runtime_data).electricity_coordinator
+        if "_electricity_" in entry.unique_id
+        else cast(EneverRuntimeData, entry.runtime_data).gas_coordinator
+        for registry_entry in registry_entries
+        if registry_entry.config_entry_id is not None
+        and (
+            entry := hass.config_entries.async_get_entry(registry_entry.config_entry_id)
+        )
+        and entry.unique_id is not None
+    ]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -63,8 +108,18 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
         await api_tracker.reset(request_count, token_limit_reached)
 
+    async def handle_force_refresh(call: ServiceCall) -> None:
+        """Handle the service action call."""
+        entity_ids = call.data.get("entity_id")
+        for coordinator in get_enever_coordinators(hass, entity_ids):
+            # TODO call force_refresh
+            await coordinator.async_request_refresh()
+
     hass.services.async_register(DOMAIN, "set_request_limit", handle_set_request_limit)
     hass.services.async_register(DOMAIN, "reset", handle_reset)
+    hass.services.async_register(
+        DOMAIN, "force_refresh", handle_force_refresh, schema=FORCE_REFRESH_SCHEMA
+    )
 
     return True
 
