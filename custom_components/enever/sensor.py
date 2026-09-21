@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from datetime import datetime, timedelta
+import statistics
 from typing import cast
 
 from homeassistant.components.sensor import (
@@ -217,6 +218,14 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
             self._calculate_average_price(data_tomorrow)
         )
 
+        # Calculate medians
+        self._attr_extra_state_attributes["today_median"] = (
+            self._calculate_median_price(data_today)
+        )
+        self._attr_extra_state_attributes["tomorrow_median"] = (
+            self._calculate_median_price(data_tomorrow)
+        )
+
         # Expose the full data for today and tomorrow as attributes (if yet known) for use in graphs
         self._attr_extra_state_attributes["prices_today"] = data_today
         self._attr_extra_state_attributes["prices_tomorrow"] = data_tomorrow
@@ -251,6 +260,20 @@ class EneverElectricitySensorEntity(EneverHourlyEntity, SensorEntity):
         ]
 
         return sum(valid_prices) / len(valid_prices) if valid_prices else 0
+
+    def _calculate_median_price(
+        self, data: list[dict[str, datetime | float | None]] | None
+    ) -> float | None:
+        if data is None or len(data) == 0:
+            return None
+
+        valid_prices = [
+            cast(float, data_item["price"])
+            for data_item in data
+            if data_item["price"] is not None
+        ]
+
+        return statistics.median(valid_prices) if valid_prices else 0
 
 
 class EneverRequestCountSensorEntity(RestoreSensor, EneverAPITrackerObserver):
