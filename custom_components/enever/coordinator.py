@@ -349,7 +349,15 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
         if data.today is None or len(data.today) == 0:
-            return True
+            # If this is the first time data is fetched, wait until it should be available
+            # to prevent simply running out of attempts each day
+            if now.hour >= 6:
+                return True
+
+            self.logger.debug(
+                "Waiting until 06:00 before fetching today's data, skipping"
+            )
+            return False
 
         # Try to update as soon as the prices expire, new ones should be available right away or within the hour
         data_validto = data.today[0].datum + timedelta(days=1)
@@ -413,6 +421,8 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
         if data.tomorrow is None or len(data.tomorrow) == 0:
+            # If this is the first time data is fetched, wait until it should be available
+            # to prevent simply running out of attempts each day
             if now.hour >= 15:
                 return True
 
