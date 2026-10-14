@@ -5,16 +5,18 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 import logging
 from typing import Any
+
+from httpx import ConnectError, TimeoutException
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 import homeassistant.util.dt as dt_util
-from homeassistant.util.dt import as_local, get_default_time_zone
+from homeassistant.util.dt import as_local
 
 from .const import CONF_RESOLUTION, DOMAIN
 from .enever_api import (
@@ -196,9 +198,9 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
             store = True
 
         try:
-            if await self._allow_request_today(
+            if self._should_update_today(
                 now, new_data
-            ) and self._should_update_today(now, new_data):
+            ) and await self._allow_request_today(now, new_data):
                 new_data.today_attempt = new_data.today_attempt + 1
                 new_data.today_lastrequest = now
                 await self.api_tracker.count_request()
@@ -212,9 +214,9 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
                 if response is not None:
                     new_data.today = response.data
 
-            if await self._allow_request_tomorrow(
+            if self._should_update_tomorrow(
                 now, new_data
-            ) and self._should_update_tomorrow(now, new_data):
+            ) and await self._allow_request_tomorrow(now, new_data):
                 new_data.tomorrow_attempt = new_data.tomorrow_attempt + 1
                 new_data.tomorrow_lastrequest = now
                 await self.api_tracker.count_request()
@@ -235,7 +237,12 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         except EneverTokenLimitReached:
             self.last_update_success = False
             await self.api_tracker.token_limit_reached()
+        except (TimeoutError, TimeoutException, ConnectError):
+            self.logger.error("Connection timed out")
+        except Exception:
+            self.logger.exception("Error while fetching data")
         finally:
+            self.data = new_data
             if store:
                 await self.store.async_save(new_data.to_dict())
 
@@ -277,13 +284,13 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
     async def _allow_request(
         self, now: datetime, lastrequest: datetime | None, attempt: int, feed: str
     ) -> bool:
-        if lastrequest is None:
-            return True
-
         # Global API request tracker
         if not await self.api_tracker.allow_request():
             self.logger.debug("API request denied by tracker, skipping")
             return False
+
+        if lastrequest is None:
+            return True
 
         # Throttle
         if (now - lastrequest) < self._get_request_interval():
@@ -420,25 +427,20 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
     def _should_update_tomorrow(
         self, now: datetime, data: EneverCoordinatorData
     ) -> bool:
-        if data.tomorrow is None or len(data.tomorrow) == 0:
-            # If this is the first time data is fetched, wait until it should be available
-            # to prevent simply running out of attempts each day
-            if now.hour >= 15:
-                return True
+        date_tomorrow = now.date() + timedelta(days=1)
 
+        if (
+            data.tomorrow is not None
+            and len(data.tomorrow) > 0
+            and data.tomorrow[0].datum.date() >= date_tomorrow
+        ):
             self.logger.debug(
-                "Waiting until 15:00 before fetching tomorrow's data, skipping"
+                "Tomorrow's data is already up to date, skipping"
             )
             return False
 
         # Prices for tomorrow will usually be available from 15:00, at most 16:00
-        data_validto = datetime.combine(
-            data.tomorrow[0].datum.date(),
-            time(hour=15),
-            get_default_time_zone(),
-        )
-
-        if now >= data_validto:
+        if now.hour >= 15:
             return True
 
         self.logger.debug(
