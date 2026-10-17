@@ -37,7 +37,7 @@ class EneverAPITrackerData:
 
         return EneverAPITrackerData(
             request_count=data.get("request_count", 0),
-            request_limit=data.get("request_limit", 0),
+            request_limit=data.get("request_limit", DEFAULT_REQUEST_LIMIT),
             month=data.get("month", ""),
             token_limit_reached=data.get("token_limit_reached", False),
         )

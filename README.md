@@ -87,7 +87,9 @@ Let op: dit kan afwijken van het werkelijke aantal resterende aanvragen, aangezi
 
 ### HACS
 
-Ga naar het HACS-dashboard, klik op het menu in de rechterbovenhoek en selecteer 'Aangepaste repositories'. Voer in het veld Repository `https://github.com/MvRens/ha-enever` in. Selecteer `Integratie` als Type en klik op 'Toevoegen'. Er zou een nieuwe optie bovenaan het dialoogvenster moeten verschijnen en u kunt het nu sluiten. Zoek naar 'Enever' in de store om het te downloaden en te installeren.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=MvRens&repository=ha-enever&category=integration)
+
+Gebruik bovenstaande link of ga naar het HACS-dashboard, klik op het menu in de rechterbovenhoek en selecteer 'Aangepaste repositories'. Voer in het veld Repository `https://github.com/MvRens/ha-enever` in. Selecteer `Integratie` als Type en klik op 'Toevoegen'. Er zou een nieuwe optie bovenaan het dialoogvenster moeten verschijnen en u kunt het nu sluiten. Zoek naar 'Enever' in de store om het te downloaden en te installeren.
 
 ### Handmatig
 
