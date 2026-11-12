@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 import logging
 from typing import Any
 
@@ -35,7 +35,14 @@ STORAGE_VERSION = 1
 # If fetching fails, or the data is still old at the start of the refresh cycle,
 # try again later. The lower the faster prices will update, but the more API
 # tokens will be used up so lower it with caution.
-MIN_TIME_BETWEEN_REQUESTS_GAS = timedelta(minutes=15)
+MIN_TIME_BETWEEN_REQUESTS_GAS = timedelta(minutes=60)
+
+# The time of day at which Enever first provides gas prices for today
+MIN_TIME_DATA_AVAILABLE_GAS = time(hour=6)
+
+# The time of day at which Enever first provides electricity prices for tomorrow.
+# Usually 15:00, at most 16:00, if all goes well.
+MIN_TIME_DATA_AVAILABLE_ELECTRICITY_TOMORROW = time(hour=15)
 
 # The retry interval is set higher for electricity since it can simply use
 # yesterday's "tomorrow" prices in the meantime.
@@ -237,7 +244,7 @@ class EneverUpdateCoordinator(DataUpdateCoordinator[EneverCoordinatorData], ABC)
         except EneverTokenLimitReached:
             self.last_update_success = False
             await self.api_tracker.token_limit_reached()
-        except (TimeoutError, TimeoutException, ConnectError):
+        except TimeoutError, TimeoutException, ConnectError:
             self.logger.error("Connection timed out")
         except Exception:
             self.logger.exception("Error while fetching data")
@@ -355,25 +362,23 @@ class GasPricesCoordinator(EneverUpdateCoordinator):
         return MIN_TIME_BETWEEN_REQUESTS_GAS
 
     def _should_update_today(self, now: datetime, data: EneverCoordinatorData) -> bool:
-        if data.today is None or len(data.today) == 0:
-            # If this is the first time data is fetched, wait until it should be available
-            # to prevent simply running out of attempts each day
-            if now.hour >= 6:
-                return True
-
-            self.logger.debug(
-                "Waiting until 06:00 before fetching today's data, skipping"
-            )
+        if (
+            data.today is not None
+            and len(data.today) > 0
+            and data.today[0].datum.date() == now.date()
+        ):
+            self.logger.debug("Today's data is already up to date, skipping")
             return False
 
-        # Try to update as soon as the prices expire, new ones should be available right away or within the hour
-        data_validto = data.today[0].datum + timedelta(days=1)
-        if now >= data_validto:
+        # Data is not today's. Wait at least until data is known to be available before attempting to fetch today's price.
+        min_time = datetime.combine(now.date(), MIN_TIME_DATA_AVAILABLE_GAS, now.tzinfo)
+
+        if now >= min_time:
             return True
 
         self.logger.debug(
             "Waiting until %s before fetching today's data, skipping",
-            data_validto.strftime("%Y-%m-%d %H:%M:%S"),
+            min_time.strftime("%H:%M"),
         )
         return False
 
@@ -419,9 +424,7 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
         if now.date() != data.today[0].datum.date():
             return True
 
-        self.logger.debug(
-            "Waiting until midnight before fetching today's data, skipping"
-        )
+        self.logger.debug("Today's data is already up to date, skipping")
         return False
 
     def _should_update_tomorrow(
@@ -434,13 +437,14 @@ class ElectricityPricesCoordinator(EneverUpdateCoordinator):
             and len(data.tomorrow) > 0
             and data.tomorrow[0].datum.date() >= date_tomorrow
         ):
-            self.logger.debug(
-                "Tomorrow's data is already up to date, skipping"
-            )
+            self.logger.debug("Tomorrow's data is already up to date, skipping")
             return False
 
-        # Prices for tomorrow will usually be available from 15:00, at most 16:00
-        if now.hour >= 15:
+        # Tomorrow's data is stale. Wait at least until data is known to be available before attempting to fetch tomorrow's prices.
+        min_time = datetime.combine(
+            now.date(), MIN_TIME_DATA_AVAILABLE_ELECTRICITY_TOMORROW, now.tzinfo
+        )
+        if now >= min_time:
             return True
 
         self.logger.debug(
